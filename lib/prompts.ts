@@ -28,37 +28,29 @@ export function topicSuggestionPrompt(industry?: string, interests?: string[], t
 }
 
 /**
- * Prompt for Step 2: Generating content ideas/angles with user instructions
+ * Prompt for Step 2: Generating content ideas/angles with strict user instructions
  */
 export function contentIdeasPrompt(topic: string, userInput: string, contentType: string, tone: string): string {
   return `
     You are a LinkedIn content creator specializing in ${tone} content.
     
-    Topic: ${topic}
-    CRITICAL USER INSTRUCTIONS (Follow these strictly): ${userInput}
-    Content Type: ${contentType}
+    TOPIC: ${topic}
+    CRITICAL USER INSTRUCTIONS: ${userInput || "None provided. Use your best creative judgment."}
+    CONTENT TYPE: ${contentType}
     
-    Generate 5 unique content ideas that strictly follow the user instructions above.
-    Each idea must follow LinkedIn's algorithm preferences.
-    Each idea should have:
-    - Compelling hook (first line that stops the scroll)
-    - Unique angle/perspective
-    - Clear target audience
-    - Engagement prediction (1-10)
+    TASK: Generate 5 unique content ideas. You MUST strictly follow the 'CRITICAL USER INSTRUCTIONS' provided above.
     
-    Return ONLY valid JSON array:
+    Return ONLY a valid JSON array:
     [
       {
         "id": "unique-id",
-        "title": "Content title",
-        "hook": "First 1-2 sentences that grab attention",
-        "angle": "Unique perspective or approach",
-        "targetAudience": "Specific audience description",
+        "title": "Title",
+        "hook": "Hook",
+        "angle": "Angle",
+        "targetAudience": "Audience",
         "estimatedEngagement": 8
       }
     ]
-    
-    Focus on: storytelling, value-first approach, actionable insights, personal experiences.
   `;
 }
 
@@ -109,171 +101,4 @@ export function contentGenerationPrompt(outline: ContentOutline, contentType: st
     Generate complete LinkedIn ${contentType} content.
     
     Outline: ${JSON.stringify(outline)}
-    Max Length: ${maxLength} words
-    
-    CRITICAL LinkedIn Formatting Rules:
-    1. Start with hook (under 150 chars - this appears before "see more")
-    2. Use SHORT paragraphs (2-3 sentences maximum)
-    3. Add line breaks between paragraphs for mobile readability
-    4. Include 1-2 relevant emojis (not excessive)
-    5. End with clear CTA and engagement question
-    6. Add 3-5 hashtags at the very end
-    7. ${contentType === 'post' ? 'Keep under 1300 characters for maximum reach' : 'Aim for 1000-1500 words'}
-    
-    Content Structure:
-    - Hook (critical first impression)
-    - ${outline.sections.map(s => s.title).join('\n- ')}
-    - ${outline.callToAction}
-    
-    Return ONLY valid JSON:
-    {
-      "content": {
-        "text": "Full formatted content with \\n\\n for line breaks",
-        "characterCount": 1250,
-        "wordCount": 210,
-        "readingTime": 2,
-        "hashtags": ["#Tag1", "#Tag2"],
-        "seoScore": 85
-      },
-      "formatting": {
-        "paragraphs": 8,
-        "lineBreaks": 7,
-        "emojiCount": 2
-      }
-    }
-    
-    Write naturally, use storytelling, provide value, optimize for engagement.
-  `;
-}
-
-/**
- * Prompt for Step 5: Generating image prompts
- */
-export function imagePromptGenerationPrompt(content: string, contentType: string, visualStyle: string = 'professional'): string {
-  return `
-    Generate image creation prompts for LinkedIn content.
-    
-    Content Summary: ${content.substring(0, 500)}
-    Content Type: ${contentType}
-    Visual Style: ${visualStyle}
-    
-    Create 2-3 detailed image prompts suitable for:
-    - DALL-E, Midjourney, or Stable Diffusion
-    - Professional LinkedIn aesthetic
-    - Mobile-first viewing
-    
-    Each prompt should specify:
-    - Composition and layout
-    - Color palette (professional, LinkedIn-appropriate)
-    - Style and mood
-    - Key visual elements
-    - Text overlay areas (if applicable)
-    
-    Return ONLY valid JSON:
-    {
-      "imagePrompts": [
-        {
-          "id": "img-1",
-          "prompt": "Detailed AI image generation prompt with composition, colors, style, and specific elements",
-          "placement": "header",
-          "purpose": "Main attention-grabbing visual",
-          "aspectRatio": "1:1",
-          "style": "${visualStyle}"
-        }
-      ],
-      "designTips": [
-        "Keep text minimal and readable on mobile",
-        "Use high contrast for accessibility",
-        "Align with LinkedIn's professional brand"
-      ]
-    }
-    
-    ${contentType === 'carousel' ? 'Include 3-5 carousel slide prompts' : ''}
-    ${contentType === 'article' ? 'Include header + 1-2 inline images' : ''}
-    ${contentType === 'post' ? 'Single impactful image' : ''}
-    
-    Focus on: professional aesthetics, brand consistency, mobile optimization.
-  `;
-}
-
-/**
- * Prompt for Step 5: SEO and Algorithm Analysis
- */
-export function seoAnalysisPrompt(content: string, topic: string, hashtags: string[] = []): string {
-  return `
-    Analyze this LinkedIn content for SEO and engagement optimization.
-    
-    Content: ${content}
-    Topic: ${topic}
-    Current Hashtags: ${hashtags.join(', ')}
-    
-    Provide comprehensive SEO analysis:
-    
-    1. Overall SEO Score (1-100) based on:
-       - Keyword optimization
-       - Content length and structure
-       - Hashtag strategy
-       - Engagement elements
-       - Mobile readability
-    
-    2. Specific Recommendations with priority (high/medium/low):
-       - Keyword density and placement
-       - Hashtag improvements (3-5 max, mix of popular and niche)
-       - Content structure issues
-       - Engagement optimization
-       - Call-to-action effectiveness
-    
-    3. LinkedIn Algorithm Best Practices:
-       - Optimal posting times for target audience
-       - Content length analysis
-       - First comment strategy suggestions
-       - Engagement bait (questions, polls)
-       - Dwell time optimization techniques
-    
-    4. Hashtag Deep Analysis (Reach & Relevance):
-       - Evaluate the effectiveness of current hashtags.
-       - Provide a list of recommended hashtags with their "Reach Potential" (High/Medium/Low).
-       - Classify each recommendation as "Broad", "Niche", "Trending", or "Branded".
-       - Explain the strategic reason for each suggestion in the LinkedIn ecosystem.
-    
-    Return ONLY valid JSON:
-    {
-      "seoScore": 85,
-      "recommendations": [
-        {
-          "category": "Keywords",
-          "priority": "high",
-          "issue": "Keyword density too low",
-          "solution": "Include '${topic}' 2-3 more times naturally",
-          "impact": "Increase discoverability by 15-20%"
-        }
-      ],
-      "hashtagAnalysis": [
-        {
-          "hashtag": "#IndustryInsights",
-          "type": "broad",
-          "reachPotential": "high",
-          "reasoning": "Broad industry hashtags help reach a wider professional audience beyond immediate connections."
-        }
-      ],
-      "bestPractices": {
-        "timing": "Tuesday 9 AM or Wednesday 12 PM EST",
-        "length": "Current: ${content.length} chars. Optimal: 1200-1300 for max reach",
-        "keywords": ["keyword1", "keyword2", "keyword3"],
-        "hashtags": ["#OptimizedTag1", "#OptimizedTag2"]
-      }
-    }
-    
-    Be specific, actionable, and prioritize by impact on reach and engagement.
-  `;
-}
-
-// Backwards compatibility for existing App.tsx calls
-export const PROMPTS = {
-  GENERATE_TOPICS: (industry: string) => topicSuggestionPrompt(industry),
-  GENERATE_IDEAS: (topic: string, contentType: string, tone: string) => contentIdeasPrompt(topic, '', contentType, tone),
-  GENERATE_OUTLINE: (idea: ContentIdea) => outlineGenerationPrompt(idea),
-  GENERATE_CONTENT: (outline: ContentOutline, type: string) => contentGenerationPrompt(outline, type),
-  GENERATE_IMAGE_PROMPTS: (content: string) => imagePromptGenerationPrompt(content, 'post'),
-  GENERATE_SEO_TIPS: (content: string, topic: string) => seoAnalysisPrompt(content, topic, [])
-};
+    Max

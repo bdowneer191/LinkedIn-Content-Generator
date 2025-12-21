@@ -11,14 +11,14 @@ export const IdeaCards: React.FC = () => {
   const { state, updateState, goToStep } = useApp();
   const [contentType, setContentType] = useState<'post' | 'article' | 'carousel'>('post');
   const [tone, setTone] = useState<'professional' | 'casual' | 'inspirational'>('professional');
-  const [userInstructions, setUserInstructions] = useState(''); // New state for input
+  const [instructions, setInstructions] = useState(''); // New State for user instructions
 
   const handleGenerateIdeas = async () => {
     if (!state.selectedTopic) return;
     updateState({ isGenerating: true, error: null });
     try {
-      // Pass the userInstructions to the prompt to strictly follow your guidance
-      const prompt = contentIdeasPrompt(state.selectedTopic.title, userInstructions, contentType, tone);
+      // Pass the custom instructions to the AI for strict guidance
+      const prompt = contentIdeasPrompt(state.selectedTopic.title, instructions, contentType, tone);
       const result = await rateLimiter.add(() => queryAI<any>(prompt));
       
       const ideas = (result.ideas || result).map((i: any, idx: number) => ({
@@ -80,26 +80,26 @@ export const IdeaCards: React.FC = () => {
           </div>
         </div>
 
-        {/* Custom Instructions Field */}
+        {/* New Instructions Field for Custom Guidance */}
         <div className="space-y-4">
-          <label className="text-sm font-black uppercase tracking-[0.2em] text-gray-400 flex items-center gap-2">
-            <Edit3 size={16} /> Strategic Instructions (Optional)
-          </label>
-          <textarea
-            placeholder="e.g. Focus on a contrarian view, mention specific case studies, or target entry-level developers..."
-            className="w-full p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none transition-all font-medium h-24 resize-none"
-            value={userInstructions}
-            onChange={(e) => setUserInstructions(e.target.value)}
-          />
+           <label className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 flex items-center gap-2">
+              <Edit3 size={14} /> Custom AI Instructions
+           </label>
+           <textarea 
+             className="w-full p-6 bg-gray-50 border border-gray-100 rounded-2xl focus:border-primary outline-none transition-all h-24 text-sm font-medium"
+             placeholder="e.g. Focus on ROI, mention my experience in SaaS, or use a contrarian hook..."
+             value={instructions}
+             onChange={(e) => setInstructions(e.target.value)}
+           />
         </div>
         
         <button
           onClick={handleGenerateIdeas}
           disabled={state.isGenerating}
-          className="w-full py-4 bg-primary text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 hover:scale-[1.01] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+          className="btn-linkedin w-full py-4 text-lg flex items-center justify-center gap-3"
         >
           {state.isGenerating ? <Loader2 className="animate-spin" /> : <Flame className="fill-white" />}
-          Generate Content Angles
+          Generate Custom Angles
         </button>
       </div>
 

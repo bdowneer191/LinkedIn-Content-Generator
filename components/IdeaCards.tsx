@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Target, TrendingUp, ArrowRight, Loader2, Type, MessageSquare, Flame } from 'lucide-react';
+import { Target, TrendingUp, ArrowRight, Loader2, Type, MessageSquare, Flame, Edit3 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { queryAI } from '../lib/gemini';
 import { contentIdeasPrompt } from '../lib/prompts';
@@ -12,19 +11,23 @@ export const IdeaCards: React.FC = () => {
   const { state, updateState, goToStep } = useApp();
   const [contentType, setContentType] = useState<'post' | 'article' | 'carousel'>('post');
   const [tone, setTone] = useState<'professional' | 'casual' | 'inspirational'>('professional');
+  const [userInstructions, setUserInstructions] = useState(''); // New state for input
 
   const handleGenerateIdeas = async () => {
     if (!state.selectedTopic) return;
     updateState({ isGenerating: true, error: null });
     try {
-      const prompt = contentIdeasPrompt(state.selectedTopic.title, '', contentType, tone);
+      // Pass the userInstructions to the prompt to strictly follow your guidance
+      const prompt = contentIdeasPrompt(state.selectedTopic.title, userInstructions, contentType, tone);
       const result = await rateLimiter.add(() => queryAI<any>(prompt));
+      
       const ideas = (result.ideas || result).map((i: any, idx: number) => ({
         ...i,
         id: `idea-${Date.now()}-${idx}`,
         contentType,
         tone
       }));
+      
       updateState({ ideas, isGenerating: false });
     } catch (err: any) {
       updateState({ error: err.message, isGenerating: false });
@@ -33,7 +36,6 @@ export const IdeaCards: React.FC = () => {
 
   const handleSelectIdea = (idea: ContentIdea) => {
     updateState({ selectedIdea: idea });
-    // This would typically trigger outline generation, handled in step transition or within component
     goToStep(3);
   };
 
@@ -76,6 +78,19 @@ export const IdeaCards: React.FC = () => {
               ))}
             </div>
           </div>
+        </div>
+
+        {/* Custom Instructions Field */}
+        <div className="space-y-4">
+          <label className="text-sm font-black uppercase tracking-[0.2em] text-gray-400 flex items-center gap-2">
+            <Edit3 size={16} /> Strategic Instructions (Optional)
+          </label>
+          <textarea
+            placeholder="e.g. Focus on a contrarian view, mention specific case studies, or target entry-level developers..."
+            className="w-full p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none transition-all font-medium h-24 resize-none"
+            value={userInstructions}
+            onChange={(e) => setUserInstructions(e.target.value)}
+          />
         </div>
         
         <button

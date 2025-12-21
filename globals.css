@@ -1,0 +1,75 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-dark antialiased;
+    scrollbar-gutter: stable;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-primary;
+  }
+}
+
+@layer components {
+  .btn-linkedin {
+    @apply bg-primary text-white px-6 py-2 rounded-full font-semibold hover:bg-primary-dark transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md;
+  }
+  
+  .card-linkedin {
+    @apply bg-white rounded-xl shadow-linkedin p-6 hover:shadow-xl transition-all border border-transparent hover:border-primary/10;
+  }
+  
+  .input-linkedin {
+    @apply w-full border border-gray-300 rounded-lg px-4 py-3 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-gray-400 font-medium;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full border-2 border-background hover:bg-gray-400 transition-colors;
+  }
+}
+
+/* Print optimizations */
+@media print {
+  header, footer, button, .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .card-linkedin {
+    box-shadow: none;
+    border: 1px solid #eee;
+  }
+}
+
+/* Utility Animations */
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

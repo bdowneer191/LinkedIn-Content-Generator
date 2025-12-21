@@ -76,6 +76,7 @@ export async function queryAI<T>(prompt: string): Promise<T> {
     const endIdx = text.lastIndexOf('}') + 1;
     
     if (startIdx === -1 || endIdx === 0) {
+      console.error("Raw AI Output (No JSON found):", text);
       throw new Error("No JSON object found in AI response");
     }
 
@@ -84,7 +85,7 @@ export async function queryAI<T>(prompt: string): Promise<T> {
     try {
       return JSON.parse(cleaned) as T;
     } catch (parseError) {
-      console.error("Failed to parse Gemini JSON response:", cleaned);
+      console.error("Cleaned JSON String:", cleaned);
       throw new Error("Invalid JSON structure from AI Agent");
     }
   } catch (error) {

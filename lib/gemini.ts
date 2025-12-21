@@ -1,7 +1,6 @@
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
-// Fixed: Initialize AI directly with process.env.API_KEY as per coding guidelines
+// Initialize AI directly with process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Configuration constants
@@ -29,7 +28,7 @@ export async function generateWithRetry(
   
   for (let i = 0; i < retries; i++) {
     try {
-      // Fixed: Always use ai.models.generateContent for querying models
+      // Use ai.models.generateContent for querying models
       const response = await ai.models.generateContent({
         model: MODEL_NAME,
         contents: prompt,
@@ -39,7 +38,7 @@ export async function generateWithRetry(
         }
       });
 
-      // Fixed: Extract text output using the .text property directly
+      // Extract text output using the .text property directly
       const text = response.text;
       if (!text) throw new Error("Empty response from Gemini API");
       
@@ -66,20 +65,27 @@ export async function generateWithRetry(
 }
 
 /**
- * Generates and parses JSON response safely.
+ * Generates and parses JSON response safely with robust boundary detection.
  */
 export async function queryAI<T>(prompt: string): Promise<T> {
   try {
     const text = await generateWithRetry(prompt, 3, true);
     
-    // Clean up markdown code blocks if necessary (Gemini sometimes adds them even with responseMimeType)
-    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    // Robustly find the JSON boundaries in case of AI "chatter" or markdown markers
+    const startIdx = text.indexOf('{');
+    const endIdx = text.lastIndexOf('}') + 1;
+    
+    if (startIdx === -1 || endIdx === 0) {
+      throw new Error("No JSON object found in AI response");
+    }
+
+    const cleaned = text.substring(startIdx, endIdx);
     
     try {
       return JSON.parse(cleaned) as T;
     } catch (parseError) {
       console.error("Failed to parse Gemini JSON response:", cleaned);
-      throw new Error("Invalid JSON response from AI Agent");
+      throw new Error("Invalid JSON structure from AI Agent");
     }
   } catch (error) {
     console.error("Gemini queryAI Error:", error);

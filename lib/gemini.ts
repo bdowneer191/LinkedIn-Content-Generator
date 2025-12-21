@@ -1,20 +1,15 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
-// Initialize AI directly with process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
 
-// Configuration constants
 const MODEL_NAME = 'gemini-3-flash-preview';
 const DEFAULT_CONFIG = {
   temperature: 0.7,
   topK: 40,
   topP: 0.95,
-  maxOutputTokens: 2048,
+  maxOutputTokens: 4096, // Increased from 2048 to prevent truncation
 };
 
-/**
- * Implements exponential backoff for retrying AI requests.
- */
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -25,10 +20,8 @@ export async function generateWithRetry(
   isJson: boolean = false
 ): Promise<string> {
   let lastError: any;
-  
   for (let i = 0; i < retries; i++) {
     try {
-      // Use ai.models.generateContent for querying models
       const response = await ai.models.generateContent({
         model: MODEL_NAME,
         contents: prompt,
@@ -37,55 +30,42 @@ export async function generateWithRetry(
           ...(isJson ? { responseMimeType: 'application/json' } : {}),
         }
       });
-
-      // Extract text output using the .text property directly
       const text = response.text;
       if (!text) throw new Error("Empty response from Gemini API");
-      
       return text;
     } catch (error: any) {
       lastError = error;
-      
-      // Handle rate limit (429) or other temporary errors
-      const isRateLimit = error?.status === 429 || error?.message?.includes('429');
-      const isRetryable = isRateLimit || error?.status >= 500;
-      
+      const isRetryable = error?.status === 429 || error?.message?.includes('429') || error?.status >= 500;
       if (isRetryable && i < retries - 1) {
-        const backoffMs = Math.pow(2, i) * 1000 + Math.random() * 1000;
-        console.warn(`Gemini API error (attempt ${i + 1}/${retries}). Retrying in ${Math.round(backoffMs)}ms...`, error.message);
-        await sleep(backoffMs);
+        await sleep(Math.pow(2, i) * 1000 + Math.random() * 1000);
         continue;
       }
-      
       throw error;
     }
   }
-  
   throw lastError;
 }
 
-/**
- * Generates and parses JSON response safely with robust boundary detection.
- */
 export async function queryAI<T>(prompt: string): Promise<T> {
   try {
     const text = await generateWithRetry(prompt, 3, true);
     
-    // Robustly find the JSON boundaries in case of AI "chatter" or markdown markers
     const startIdx = text.indexOf('{');
-    const endIdx = text.lastIndexOf('}') + 1;
+    let endIdx = text.lastIndexOf('}') + 1;
     
-    if (startIdx === -1 || endIdx === 0) {
-      console.error("Raw AI Output (No JSON found):", text);
-      throw new Error("No JSON object found in AI response");
+    // Recovery Logic: If the JSON is truncated, try to close it manually
+    let jsonString = text;
+    if (startIdx !== -1 && endIdx === 0) {
+       jsonString = text.trim() + '"} }'; // Attempt emergency closure for content blocks
+       endIdx = jsonString.length;
     }
 
-    const cleaned = text.substring(startIdx, endIdx);
+    const cleaned = jsonString.substring(startIdx, endIdx);
     
     try {
       return JSON.parse(cleaned) as T;
     } catch (parseError) {
-      console.error("Cleaned JSON String:", cleaned);
+      console.error("Failed to parse. Raw:", text);
       throw new Error("Invalid JSON structure from AI Agent");
     }
   } catch (error) {
@@ -93,5 +73,3 @@ export async function queryAI<T>(prompt: string): Promise<T> {
     throw error;
   }
 }
-
-export { ai };

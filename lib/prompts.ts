@@ -1,4 +1,3 @@
-
 import { ContentIdea, ContentOutline } from '../types/index';
 
 /**
@@ -29,17 +28,18 @@ export function topicSuggestionPrompt(industry?: string, interests?: string[], t
 }
 
 /**
- * Prompt for Step 2: Generating content ideas/angles
+ * Prompt for Step 2: Generating content ideas/angles with user instructions
  */
 export function contentIdeasPrompt(topic: string, userInput: string, contentType: string, tone: string): string {
   return `
     You are a LinkedIn content creator specializing in ${tone} content.
     
     Topic: ${topic}
-    User Context: ${userInput}
+    CRITICAL USER INSTRUCTIONS (Follow these strictly): ${userInput}
     Content Type: ${contentType}
     
-    Generate 5 unique content ideas following LinkedIn's algorithm preferences.
+    Generate 5 unique content ideas that strictly follow the user instructions above.
+    Each idea must follow LinkedIn's algorithm preferences.
     Each idea should have:
     - Compelling hook (first line that stops the scroll)
     - Unique angle/perspective

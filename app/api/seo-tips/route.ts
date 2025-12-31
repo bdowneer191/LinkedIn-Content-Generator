@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 import { queryAI } from '../../../lib/gemini';
 import { rateLimiter } from '../../../lib/rate-limiter';
@@ -33,10 +32,7 @@ export async function POST(req: Request) {
     
     const finalAnalysis = {
       seoScore: Math.round((localScore + aiAnalysis.seoScore) / 2),
-      recommendations: aiAnalysis.recommendations.map((r: any) => ({
-        ...r,
-        difficulty: r.priority === 'high' ? 'medium' : 'easy' // Mock implementation of difficulty
-      })),
+      recommendations: aiAnalysis.recommendations, // REMOVED: Mock difficulty mapping. AI now provides this.
       hashtagAnalysis: aiAnalysis.hashtagAnalysis || [],
       bestPractices: aiAnalysis.bestPractices,
       contentAnalysis

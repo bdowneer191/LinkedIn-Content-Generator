@@ -1,71 +1,584 @@
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LinkedIn Content Generator - AI-Powered Professional Writing</title>
-    <link rel="stylesheet" href="globals.css">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: '#0A66C2', // LinkedIn Blue
-              'primary-dark': '#004182',
-              secondary: '#057642', // LinkedIn Green
-              'secondary-dark': '#034428',
-              background: '#F3F2EF', // LinkedIn Light Gray
-              'background-dark': '#E8E6E1',
-              dark: '#000000',
-              'text-light': '#666666',
-              border: '#E0E0E0'
-            },
-            fontFamily: {
-              sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-            },
-            boxShadow: {
-              'linkedin': '0 0 0 1px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.08)',
-            },
-            animation: {
-              'slide-in': 'slideIn 0.3s ease-out',
-              'fade-in': 'fadeIn 0.2s ease-in',
-            },
-            keyframes: {
-              slideIn: {
-                '0%': { transform: 'translateY(10px)', opacity: 0 },
-                '100%': { transform: 'translateY(0)', opacity: 1 },
-              },
-              fadeIn: {
-                '0%': { opacity: 0 },
-                '100%': { opacity: 1 },
-              },
-            },
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn Content Generator Pro - AI Persona & Image Generation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0A66C2',
+            secondary: '#057642',
+            background: '#F3F2EF'
           }
         }
       }
-    </script>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react/": "https://esm.sh/react@19.0.0/",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/": "https://esm.sh/react-dom@19.0.0/",
-    "lucide-react": "https://esm.sh/lucide-react@0.462.0?external=react",
-    "@google/genai": "https://esm.sh/@google/genai@1.3.2",
-    "zod": "https://esm.sh/zod@3.23.8",
-    "sonner": "https://esm.sh/sonner@1.7.4?external=react,react-dom"
-  }
-}
-</script>
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .animate-spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  </style>
 </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
-  </body>
+<body class="bg-background">
+  <div id="root"></div>
+
+  <script type="module">
+    import React, { useState, useEffect, createContext, useContext } from 'https://esm.sh/react@18.2.0';
+    import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
+
+    // ============= APP STATE =============
+    const AppContext = createContext();
+
+    const initialState = {
+      step: 'persona', // persona -> topics -> ideas -> outline -> content -> enhance
+      persona: null,
+      topics: [],
+      selectedTopic: null,
+      ideas: [],
+      selectedIdea: null,
+      outline: null,
+      content: null,
+      images: [],
+      isGenerating: false,
+      bananaApiKey: localStorage.getItem('banana_api_key') || ''
+    };
+
+    function AppProvider({ children }) {
+      const [state, setState] = useState(() => {
+        const saved = localStorage.getItem('linkedin_gen_pro');
+        return saved ? JSON.parse(saved) : initialState;
+      });
+
+      useEffect(() => {
+        localStorage.setItem('linkedin_gen_pro', JSON.stringify(state));
+      }, [state]);
+
+      const update = (updates) => setState(prev => ({ ...prev, ...updates }));
+      const reset = () => { localStorage.removeItem('linkedin_gen_pro'); setState(initialState); };
+
+      return React.createElement(AppContext.Provider, { value: { state, update, reset } }, children);
+    }
+
+    const useApp = () => useContext(AppContext);
+
+    // ============= MOCK AI =============
+    const AI = {
+      async generateTopics(industry, persona) {
+        await new Promise(r => setTimeout(r, 1500));
+        return [
+          { id: '1', title: `${persona.role} Insights on ${industry}`, desc: 'Share your unique perspective', score: 95 },
+          { id: '2', title: `${industry} Trends ${new Date().getFullYear()}`, desc: 'What\'s changing', score: 88 },
+          { id: '3', title: 'Lessons from My Journey', desc: 'Personal growth stories', score: 92 }
+        ];
+      },
+      async generateIdeas(topic, persona) {
+        await new Promise(r => setTimeout(r, 1800));
+        return [
+          { id: '1', title: `As a ${persona.role}: ${topic}`, hook: `After ${persona.experience}, here's what I learned about ${topic}...`, score: 90 },
+          { id: '2', title: `The ${persona.role}'s Guide to ${topic}`, hook: `My ${persona.experience} taught me these ${topic} secrets...`, score: 85 }
+        ];
+      },
+      async generateOutline(idea, persona) {
+        await new Promise(r => setTimeout(r, 1600));
+        return {
+          hook: idea.hook,
+          sections: [
+            { title: 'Personal Context', points: [`My ${persona.experience} in ${persona.industry}`, 'Why this matters now'] },
+            { title: 'Key Insights', points: ['Insight 1 from experience', 'Insight 2', 'Insight 3'] },
+            { title: 'Action Steps', points: ['What you can do', 'Expected results'] }
+          ],
+          cta: `What's been your experience? Share below! 👇`,
+          hashtags: ['#Leadership', '#Growth', persona.industry.replace(/\s/g, '')]
+        };
+      },
+      async generateContent(outline, persona) {
+        await new Promise(r => setTimeout(r, 2000));
+        const text = `${outline.hook}
+
+As a ${persona.role} with ${persona.experience}, I've learned:
+
+${outline.sections[1].points.map(p => `✨ ${p}`).join('\n')}
+
+Here's what worked:
+
+${outline.sections[2].points.map((p, i) => `${i + 1}. ${p}`).join('\n')}
+
+${outline.cta}
+
+${outline.hashtags.map(h => h.startsWith('#') ? h : '#' + h).join(' ')}`;
+
+        return { text, words: text.split(/\s+/).length, chars: text.length };
+      },
+      async generateImagePrompt(content, persona) {
+        await new Promise(r => setTimeout(r, 1000));
+        return `Professional LinkedIn banner featuring ${persona.role} workspace, modern minimalist design, ${persona.industry} elements, soft lighting, high quality photography, clean aesthetic`;
+      }
+    };
+
+    // ============= BANANA API =============
+    async function generateWithBanana(prompt, apiKey) {
+      if (!apiKey) {
+        return `https://placehold.co/1200x675/0A66C2/white?text=${encodeURIComponent('Set Banana API Key')}`;
+      }
+      
+      try {
+        const res = await fetch('https://api.banana.dev/start/v4', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: apiKey,
+            modelKey: 'stabilityai/stable-diffusion-xl-base-1.0',
+            modelInputs: { prompt, num_inference_steps: 25, guidance_scale: 7.5 }
+          })
+        });
+        
+        if (!res.ok) throw new Error('Banana API failed');
+        const data = await res.json();
+        return data.modelOutputs?.[0]?.image_base64 
+          ? `data:image/png;base64,${data.modelOutputs[0].image_base64}` 
+          : `https://placehold.co/1200x675/0A66C2/white?text=Generated`;
+      } catch (err) {
+        console.error('Banana API:', err);
+        return `https://placehold.co/1200x675/0A66C2/white?text=${encodeURIComponent(prompt.slice(0, 30))}`;
+      }
+    }
+
+    // ============= COMPONENTS =============
+    
+    function Header() {
+      const { state, reset } = useApp();
+      return React.createElement('header', { className: 'bg-white border-b border-gray-200 sticky top-0 z-50' },
+        React.createElement('div', { className: 'max-w-7xl mx-auto px-4 h-16 flex items-center justify-between' },
+          React.createElement('div', { className: 'flex items-center gap-3' },
+            React.createElement('div', { className: 'bg-primary text-white p-2 rounded-xl font-black text-xl' }, '⚡'),
+            React.createElement('div', null,
+              React.createElement('h1', { className: 'text-lg font-black' }, 'ContentGen Pro'),
+              React.createElement('p', { className: 'text-xs text-gray-400' }, 'AI Persona + Image Generation')
+            )
+          ),
+          React.createElement('button', {
+            onClick: reset,
+            className: 'px-4 py-2 bg-gray-100 rounded-lg text-sm font-bold hover:bg-gray-200'
+          }, '🔄 Reset')
+        )
+      );
+    }
+
+    function PersonaStep() {
+      const { state, update } = useApp();
+      const [form, setForm] = useState(state.persona || {
+        name: '', role: '', industry: '', experience: '', tone: 'professional', expertise: []
+      });
+      const [exp, setExp] = useState('');
+
+      const save = () => {
+        if (!form.name || !form.role) return alert('Fill required fields');
+        update({ persona: form, step: 'topics' });
+      };
+
+      const addExp = () => {
+        if (exp && !form.expertise.includes(exp)) {
+          setForm({ ...form, expertise: [...form.expertise, exp] });
+          setExp('');
+        }
+      };
+
+      return React.createElement('div', { className: 'max-w-4xl mx-auto p-6 space-y-6' },
+        React.createElement('div', { className: 'bg-white rounded-3xl shadow-xl p-8' },
+          React.createElement('h2', { className: 'text-3xl font-black mb-2' }, '👤 Build Your Persona'),
+          React.createElement('p', { className: 'text-gray-600 mb-8' }, 'Define who you are - this shapes all content'),
+          
+          React.createElement('div', { className: 'grid grid-cols-2 gap-4 mb-4' },
+            ['name', 'role', 'industry', 'experience'].map(field =>
+              React.createElement('div', { key: field },
+                React.createElement('label', { className: 'text-xs font-bold uppercase text-gray-400 mb-2 block' }, field),
+                React.createElement('input', {
+                  type: 'text',
+                  className: 'w-full p-3 border-2 border-gray-100 rounded-xl focus:border-primary outline-none',
+                  value: form[field],
+                  onChange: e => setForm({ ...form, [field]: e.target.value }),
+                  placeholder: field === 'experience' ? '5+ years' : `Your ${field}`
+                })
+              )
+            )
+          ),
+
+          React.createElement('div', { className: 'mb-4' },
+            React.createElement('label', { className: 'text-xs font-bold uppercase text-gray-400 mb-2 block' }, 'Expertise Areas'),
+            React.createElement('div', { className: 'flex gap-2 mb-2' },
+              React.createElement('input', {
+                type: 'text',
+                className: 'flex-1 p-3 border-2 border-gray-100 rounded-xl focus:border-primary outline-none',
+                value: exp,
+                onChange: e => setExp(e.target.value),
+                onKeyDown: e => e.key === 'Enter' && addExp(),
+                placeholder: 'Add expertise...'
+              }),
+              React.createElement('button', {
+                onClick: addExp,
+                className: 'px-6 bg-primary text-white rounded-xl font-bold'
+              }, 'Add')
+            ),
+            React.createElement('div', { className: 'flex flex-wrap gap-2' },
+              form.expertise.map((ex, i) =>
+                React.createElement('span', {
+                  key: i,
+                  className: 'bg-blue-50 text-primary px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2'
+                },
+                  ex,
+                  React.createElement('button', {
+                    onClick: () => setForm({ ...form, expertise: form.expertise.filter((_, idx) => idx !== i) }),
+                    className: 'text-gray-400 hover:text-red-500'
+                  }, '×')
+                )
+              )
+            )
+          ),
+
+          React.createElement('div', { className: 'mb-6' },
+            React.createElement('label', { className: 'text-xs font-bold uppercase text-gray-400 mb-2 block' }, 'Tone'),
+            React.createElement('div', { className: 'grid grid-cols-4 gap-2' },
+              ['professional', 'casual', 'inspirational', 'thought-leader'].map(tone =>
+                React.createElement('button', {
+                  key: tone,
+                  onClick: () => setForm({ ...form, tone }),
+                  className: `p-3 rounded-xl border-2 font-bold capitalize ${form.tone === tone ? 'bg-primary text-white border-primary' : 'border-gray-100'}`
+                }, tone)
+              )
+            )
+          ),
+
+          React.createElement('button', {
+            onClick: save,
+            className: 'w-full bg-primary text-white py-4 rounded-2xl font-black text-lg'
+          }, '✅ Save & Continue')
+        )
+      );
+    }
+
+    function TopicsStep() {
+      const { state, update } = useApp();
+      const [industry, setIndustry] = useState(state.selectedTopic?.industry || state.persona?.industry || '');
+
+      const generate = async () => {
+        update({ isGenerating: true });
+        const topics = await AI.generateTopics(industry, state.persona);
+        update({ topics, isGenerating: false });
+      };
+
+      const select = (topic) => update({ selectedTopic: topic, step: 'ideas' });
+
+      return React.createElement('div', { className: 'max-w-4xl mx-auto p-6 space-y-6' },
+        state.persona && React.createElement('div', { className: 'bg-blue-50 p-4 rounded-2xl border border-blue-100' },
+          React.createElement('p', { className: 'font-bold' }, `🎯 ${state.persona.name} - ${state.persona.role}`)
+        ),
+
+        React.createElement('div', { className: 'bg-white rounded-3xl shadow-xl p-8' },
+          React.createElement('h2', { className: 'text-2xl font-black mb-6' }, '🔍 Choose Your Topic'),
+          React.createElement('div', { className: 'flex gap-3 mb-6' },
+            React.createElement('input', {
+              type: 'text',
+              className: 'flex-1 p-4 border-2 border-gray-100 rounded-xl focus:border-primary outline-none',
+              value: industry,
+              onChange: e => setIndustry(e.target.value),
+              placeholder: 'Enter focus area...'
+            }),
+            React.createElement('button', {
+              onClick: generate,
+              disabled: state.isGenerating,
+              className: 'px-8 bg-primary text-white rounded-xl font-bold disabled:opacity-50'
+            }, state.isGenerating ? '⏳' : '✨ Generate')
+          ),
+
+          state.topics.length > 0 && React.createElement('div', { className: 'space-y-4' },
+            state.topics.map(topic =>
+              React.createElement('div', {
+                key: topic.id,
+                onClick: () => select(topic),
+                className: 'p-6 border-2 border-gray-100 rounded-2xl hover:border-primary hover:shadow-lg cursor-pointer transition-all'
+              },
+                React.createElement('h3', { className: 'font-black text-lg mb-2' }, topic.title),
+                React.createElement('p', { className: 'text-gray-600 text-sm mb-3' }, topic.desc),
+                React.createElement('div', { className: 'flex items-center gap-2' },
+                  React.createElement('span', { className: 'text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full font-bold' },
+                    `📈 ${topic.score}% Engagement`
+                  )
+                )
+              )
+            )
+          )
+        )
+      );
+    }
+
+    function IdeasStep() {
+      const { state, update } = useApp();
+
+      const generate = async () => {
+        update({ isGenerating: true });
+        const ideas = await AI.generateIdeas(state.selectedTopic.title, state.persona);
+        update({ ideas, isGenerating: false });
+      };
+
+      const select = (idea) => update({ selectedIdea: idea, step: 'outline' });
+
+      useEffect(() => { if (state.ideas.length === 0) generate(); }, []);
+
+      return React.createElement('div', { className: 'max-w-5xl mx-auto p-6 space-y-6' },
+        React.createElement('div', { className: 'bg-white rounded-3xl shadow-xl p-8' },
+          React.createElement('h2', { className: 'text-2xl font-black mb-6' }, '💡 Content Ideas'),
+          state.ideas.length === 0 ? React.createElement('div', { className: 'text-center py-12' },
+            React.createElement('div', { className: 'animate-spin text-6xl mb-4' }, '⚡'),
+            React.createElement('p', { className: 'text-gray-500' }, 'Generating personalized ideas...')
+          ) : React.createElement('div', { className: 'space-y-4' },
+            state.ideas.map(idea =>
+              React.createElement('div', {
+                key: idea.id,
+                onClick: () => select(idea),
+                className: 'p-8 border-2 border-gray-100 rounded-3xl hover:border-primary hover:shadow-xl cursor-pointer transition-all'
+              },
+                React.createElement('h3', { className: 'text-2xl font-black mb-3' }, idea.title),
+                React.createElement('div', { className: 'bg-blue-50 p-4 rounded-xl mb-4' },
+                  React.createElement('p', { className: 'text-gray-700 italic' }, `"${idea.hook}"`)
+                ),
+                React.createElement('div', { className: 'flex items-center justify-between' },
+                  React.createElement('span', { className: 'text-sm text-gray-500' }, '🎯 Personalized for your audience'),
+                  React.createElement('span', { className: 'text-primary font-bold' }, `${idea.score}% Match →`)
+                )
+              )
+            )
+          )
+        )
+      );
+    }
+
+    function OutlineStep() {
+      const { state, update } = useApp();
+      const [outline, setOutline] = useState(null);
+
+      const generate = async () => {
+        update({ isGenerating: true });
+        const out = await AI.generateOutline(state.selectedIdea, state.persona);
+        setOutline(out);
+        update({ outline: out, isGenerating: false });
+      };
+
+      const proceed = () => update({ step: 'content' });
+
+      useEffect(() => { if (!outline) generate(); }, []);
+
+      if (!outline) return React.createElement('div', { className: 'text-center py-20' },
+        React.createElement('div', { className: 'animate-spin text-6xl mb-4' }, '⚡'),
+        React.createElement('p', { className: 'text-gray-500' }, 'Building your outline...')
+      );
+
+      return React.createElement('div', { className: 'max-w-4xl mx-auto p-6 space-y-6' },
+        React.createElement('div', { className: 'bg-white rounded-3xl shadow-xl p-8' },
+          React.createElement('h2', { className: 'text-2xl font-black mb-6' }, '📝 Content Outline'),
+          
+          React.createElement('div', { className: 'space-y-6' },
+            React.createElement('div', null,
+              React.createElement('label', { className: 'text-xs font-bold uppercase text-gray-400 mb-2 block' }, 'Hook'),
+              React.createElement('textarea', {
+                className: 'w-full p-4 bg-blue-50 border-2 border-blue-100 rounded-xl outline-none',
+                rows: 3,
+                value: outline.hook,
+                onChange: e => setOutline({ ...outline, hook: e.target.value })
+              })
+            ),
+
+            outline.sections.map((sec, i) =>
+              React.createElement('div', { key: i, className: 'p-4 bg-gray-50 rounded-xl' },
+                React.createElement('h3', { className: 'font-bold mb-2' }, sec.title),
+                React.createElement('ul', { className: 'space-y-1' },
+                  sec.points.map((p, j) =>
+                    React.createElement('li', { key: j, className: 'text-sm text-gray-600' }, `• ${p}`)
+                  )
+                )
+              )
+            ),
+
+            React.createElement('button', {
+              onClick: proceed,
+              className: 'w-full bg-primary text-white py-4 rounded-2xl font-black'
+            }, '✍️ Generate Full Content')
+          )
+        )
+      );
+    }
+
+    function ContentStep() {
+      const { state, update } = useApp();
+      const [content, setContent] = useState(null);
+
+      const generate = async () => {
+        update({ isGenerating: true });
+        const cont = await AI.generateContent(state.outline, state.persona);
+        setContent(cont);
+        update({ content: cont, isGenerating: false });
+      };
+
+      const proceed = () => update({ step: 'enhance' });
+
+      useEffect(() => { if (!content) generate(); }, []);
+
+      if (!content) return React.createElement('div', { className: 'text-center py-20' },
+        React.createElement('div', { className: 'animate-spin text-6xl mb-4' }, '✍️'),
+        React.createElement('p', { className: 'text-gray-500' }, 'Writing your content...')
+      );
+
+      return React.createElement('div', { className: 'max-w-4xl mx-auto p-6 space-y-6' },
+        React.createElement('div', { className: 'bg-white rounded-3xl shadow-xl p-8' },
+          React.createElement('h2', { className: 'text-2xl font-black mb-6' }, '📄 Your Content'),
+          
+          React.createElement('div', { className: 'bg-gray-50 p-6 rounded-2xl mb-6 max-h-96 overflow-y-auto' },
+            React.createElement('pre', { className: 'whitespace-pre-wrap font-sans text-gray-800' }, content.text)
+          ),
+
+          React.createElement('div', { className: 'grid grid-cols-3 gap-4 mb-6' },
+            [
+              { label: 'Words', value: content.words },
+              { label: 'Characters', value: content.chars },
+              { label: 'Est. Read', value: '2 min' }
+            ].map(stat =>
+              React.createElement('div', { key: stat.label, className: 'bg-blue-50 p-4 rounded-xl text-center' },
+                React.createElement('div', { className: 'text-2xl font-black text-primary' }, stat.value),
+                React.createElement('div', { className: 'text-xs text-gray-500' }, stat.label)
+              )
+            )
+          ),
+
+          React.createElement('div', { className: 'flex gap-3' },
+            React.createElement('button', {
+              onClick: () => navigator.clipboard.writeText(content.text),
+              className: 'flex-1 bg-gray-100 py-3 rounded-xl font-bold hover:bg-gray-200'
+            }, '📋 Copy'),
+            React.createElement('button', {
+              onClick: proceed,
+              className: 'flex-1 bg-primary text-white py-3 rounded-xl font-bold'
+            }, '✨ Enhance with Images')
+          )
+        )
+      );
+    }
+
+    function EnhanceStep() {
+      const { state, update } = useApp();
+      const [imagePrompt, setImagePrompt] = useState('');
+      const [generatingImg, setGeneratingImg] = useState(false);
+      const [apiKey, setApiKey] = useState(state.bananaApiKey);
+
+      const generatePrompt = async () => {
+        const prompt = await AI.generateImagePrompt(state.content.text, state.persona);
+        setImagePrompt(prompt);
+      };
+
+      const generateImage = async () => {
+        if (!imagePrompt) return alert('Generate prompt first');
+        setGeneratingImg(true);
+        const imgUrl = await generateWithBanana(imagePrompt, apiKey);
+        update({ images: [{ url: imgUrl, prompt: imagePrompt }] });
+        setGeneratingImg(false);
+      };
+
+      const saveApiKey = () => {
+        localStorage.setItem('banana_api_key', apiKey);
+        update({ bananaApiKey: apiKey });
+        alert('API Key saved!');
+      };
+
+      useEffect(() => { if (!imagePrompt) generatePrompt(); }, []);
+
+      return React.createElement('div', { className: 'max-w-5xl mx-auto p-6 space-y-6' },
+        React.createElement('div', { className: 'bg-white rounded-3xl shadow-xl p-8' },
+          React.createElement('h2', { className: 'text-2xl font-black mb-6' }, '🎨 AI Image Generation'),
+
+          React.createElement('div', { className: 'mb-6' },
+            React.createElement('label', { className: 'text-xs font-bold uppercase text-gray-400 mb-2 block' }, 'Banana API Key (Optional)'),
+            React.createElement('div', { className: 'flex gap-2' },
+              React.createElement('input', {
+                type: 'password',
+                className: 'flex-1 p-3 border-2 border-gray-100 rounded-xl outline-none',
+                value: apiKey,
+                onChange: e => setApiKey(e.target.value),
+                placeholder: 'Enter Banana API key for real generation'
+              }),
+              React.createElement('button', {
+                onClick: saveApiKey,
+                className: 'px-6 bg-gray-800 text-white rounded-xl font-bold'
+              }, 'Save')
+            ),
+            React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, 
+              '💡 Get your key at banana.dev - Without it, placeholder images will be used'
+            )
+          ),
+
+          React.createElement('div', { className: 'mb-6' },
+            React.createElement('label', { className: 'text-xs font-bold uppercase text-gray-400 mb-2 block' }, 'AI Image Prompt'),
+            React.createElement('textarea', {
+              className: 'w-full p-4 border-2 border-gray-100 rounded-xl outline-none',
+              rows: 4,
+              value: imagePrompt,
+              onChange: e => setImagePrompt(e.target.value)
+            }),
+            React.createElement('button', {
+              onClick: generateImage,
+              disabled: generatingImg,
+              className: 'w-full mt-3 bg-primary text-white py-4 rounded-2xl font-black disabled:opacity-50'
+            }, generatingImg ? '⏳ Generating...' : '🎨 Generate Image')
+          ),
+
+          state.images.length > 0 && React.createElement('div', { className: 'space-y-4' },
+            state.images.map((img, i) =>
+              React.createElement('div', { key: i, className: 'border-2 border-gray-100 rounded-2xl overflow-hidden' },
+                React.createElement('img', { src: img.url, alt: 'Generated', className: 'w-full' }),
+                React.createElement('div', { className: 'p-4 bg-gray-50' },
+                  React.createElement('p', { className: 'text-xs text-gray-600' }, img.prompt)
+                )
+              )
+            )
+          ),
+
+          React.createElement('div', { className: 'mt-8 p-6 bg-green-50 rounded-2xl border border-green-100' },
+            React.createElement('h3', { className: 'font-black text-lg mb-2' }, '✅ Content Ready!'),
+            React.createElement('p', { className: 'text-gray-600 mb-4' }, 'Your personalized content with AI-generated images is ready to post.'),
+            React.createElement('button', {
+              onClick: () => update({ step: 'persona' }),
+              className: 'w-full bg-green-600 text-white py-3 rounded-xl font-bold'
+            }, '🚀 Create Another Post')
+          )
+        )
+      );
+    }
+
+    function App() {
+      const { state } = useApp();
+      
+      const steps = { persona: PersonaStep, topics: TopicsStep, ideas: IdeasStep, outline: OutlineStep, content: ContentStep, enhance: EnhanceStep };
+      const CurrentStep = steps[state.step];
+
+      return React.createElement('div', { className: 'min-h-screen bg-background' },
+        React.createElement(Header),
+        React.createElement('main', { className: 'py-8' },
+          React.createElement(CurrentStep)
+        ),
+        state.isGenerating && React.createElement('div', { className: 'fixed inset-0 bg-black/50 flex items-center justify-center z-50' },
+          React.createElement('div', { className: 'bg-white p-8 rounded-3xl text-center' },
+            React.createElement('div', { className: 'animate-spin text-6xl mb-4' }, '⚡'),
+            React.createElement('p', { className: 'font-bold text-gray-800' }, 'AI Working...')
+          )
+        )
+      );
+    }
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(React.createElement(AppProvider, null, React.createElement(App)));
+  </script>
+</body>
 </html>

@@ -208,7 +208,7 @@ export function seoAnalysisPrompt(content: string, topic: string, hashtags: stri
        - Engagement elements
        - Mobile readability
     
-    2. Specific Recommendations with priority (high/medium/low):
+    2. Specific Recommendations with priority (high/medium/low) and difficulty (easy/medium/hard):
        - Keyword density and placement
        - Hashtag improvements (3-5 max, mix of popular and niche)
        - Content structure issues
@@ -235,6 +235,7 @@ export function seoAnalysisPrompt(content: string, topic: string, hashtags: stri
         {
           "category": "Keywords",
           "priority": "high",
+          "difficulty": "easy",
           "issue": "Keyword density too low",
           "solution": "Include '${topic}' 2-3 more times naturally",
           "impact": "Increase discoverability by 15-20%"

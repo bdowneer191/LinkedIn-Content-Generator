@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 import { queryAI } from '../../../lib/gemini';
 import { rateLimiter } from '../../../lib/rate-limiter';
@@ -42,11 +41,30 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  // Return pre-cached/default topics for quick start
-  const defaultTopics = [
-    { id: '1', title: 'Generative AI in Business', description: 'How to integrate AI agents into daily workflows for 10x productivity.', popularity: 10, keywords: ['AI', 'Automation', 'Future of Work'] },
-    { id: '2', title: 'Sustainable SaaS Architecture', description: 'Building energy-efficient cloud applications for a greener tech future.', popularity: 7, keywords: ['SaaS', 'Sustainability', 'Tech Trends'] },
-    { id: '3', title: 'Remote Team Engagement', description: 'Strategies to maintain culture and high-performance in hybrid workspaces.', popularity: 9, keywords: ['Leadership', 'RemoteWork', 'HRTech'] }
-  ];
-  return Response.json(defaultTopics);
+  // REMOVED: Mock defaultTopics array
+  // ADDED: Real-time generation for general trending business topics
+  try {
+    const cacheKey = 'topics-general-trending';
+    const cached = ContentCache.get(cacheKey);
+    if (cached) return Response.json(cached);
+
+    const prompt = topicSuggestionPrompt(
+      'General Business & Technology', 
+      ['Future of Work', 'Innovation', 'Leadership'], 
+      'Professionals on LinkedIn'
+    );
+
+    const topics = await rateLimiter.add(() => queryAI<any[]>(prompt));
+    
+    // Enrich with IDs if missing
+    const processedTopics = topics.map((t, i) => ({
+      ...t,
+      id: t.id || `topic-trend-${Date.now()}-${i}`
+    }));
+
+    ContentCache.set(cacheKey, processedTopics, 120); // Cache for 2 hours
+    return Response.json(processedTopics);
+  } catch (error) {
+    return Response.json({ error: "Failed to fetch trending topics" }, { status: 500 });
+  }
 }

@@ -104,7 +104,6 @@ export interface AppState {
   isGenerating: boolean;
   error: string | null;
   generatedImage?: string; // Added field for storing generated image URL
-  bananaApiKey?: string;   // Added field for storing Banana.dev API key
 }
 
 // API Response types

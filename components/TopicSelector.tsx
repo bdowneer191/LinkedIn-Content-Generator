@@ -1,9 +1,8 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Sparkles, ArrowRight, Search, Edit3, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { queryAI } from '../lib/gemini';
-import { topicSuggestionPrompt } from '../lib/prompts';
+import { topicSuggestionPrompt } from '../lib/prompts'; // This import should now work perfectly
 import { rateLimiter } from '../lib/rate-limiter';
 import { cn } from '../lib/utils';
 import { ContentTopic } from '../types/index';
@@ -20,7 +19,11 @@ export const TopicSelector: React.FC = () => {
     try {
       const prompt = topicSuggestionPrompt(industry);
       const result = await rateLimiter.add(() => queryAI<any>(prompt));
-      const topics = (result.topics || result).map((t: any, idx: number) => ({
+      
+      // Robust handling for array vs object response
+      const topicsArray = Array.isArray(result) ? result : (result.topics || []);
+      
+      const topics = topicsArray.map((t: any, idx: number) => ({
         ...t,
         id: `topic-${Date.now()}-${idx}`,
         source: 'auto'

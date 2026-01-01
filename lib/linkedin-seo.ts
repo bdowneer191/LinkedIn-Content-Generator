@@ -1,16 +1,13 @@
-// lib/linkedin-seo.ts
+import { queryAI } from './gemini';
+
 export const LINKEDIN_BEST_PRACTICES = {
   POST_MAX_LENGTH: 3000,
   HASHTAG_MIN: 3,
   HASHTAG_MAX: 5,
 };
 
-/**
- * Real-time local SEO scoring based on LinkedIn algorithm rules
- */
 export function calculateSEOScore(content: string, hashtags: string[] = []): number {
   let score = 0;
-  
   // Length Check: Optimal 800-2000 chars for dwell time
   if (content.length > 800 && content.length < 2000) score += 30;
   else if (content.length > 200) score += 10;
@@ -41,4 +38,13 @@ export function analyzeContent(content: string) {
     paragraphCount: content.split('\n\n').length,
     hashtagCount: (content.match(/#/g) || []).length
   };
+}
+
+export async function generateHashtagSuggestions(content: string, topic: string) {
+  const prompt = `Generate 5 relevant LinkedIn hashtags for a post about "${topic}". Content snippet: "${content.substring(0, 100)}...". Return JSON array: [{ "hashtag": "#tag", "reach": "high", "relevanceScore": 90 }]`;
+  try {
+    return await queryAI<any[]>(prompt);
+  } catch (e) {
+    return [];
+  }
 }

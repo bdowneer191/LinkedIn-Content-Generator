@@ -1,3 +1,12 @@
+import React, { useState } from 'react';
+import { Sparkles, ArrowRight, Search, Edit3, Loader2 } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { queryAI } from '../lib/gemini';
+import { topicSuggestionPrompt } from '../lib/prompts';
+import { rateLimiter } from '../lib/rate-limiter';
+import { cn } from '../lib/utils';
+import { ContentTopic } from '../types/index';
+
 export const TopicSelector: React.FC = () => {
   const { state, updateState, goToStep } = useApp();
   const [activeTab, setActiveTab] = useState<'auto' | 'manual'>('auto');

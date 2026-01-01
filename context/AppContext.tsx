@@ -1,6 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { AppState, ContentTopic, ContentIdea, ContentOutline, Step } from '../types/index';
+import { AppState, Step } from '../types/index';
 import { storage } from '../lib/storage';
 
 interface AppContextType {
@@ -34,7 +33,16 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<AppState>(() => {
     const saved = storage.load();
-    return saved || initialState;
+    if (saved) {
+      // CRITICAL FIX: Always reset isGenerating to false on load.
+      // This prevents the "Infinite Spinner" bug if the app was closed while generating.
+      return { 
+        ...saved, 
+        isGenerating: false, 
+        error: null 
+      };
+    }
+    return initialState;
   });
 
   const [isLoading, setIsLoading] = useState(false);

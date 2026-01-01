@@ -1,61 +1,108 @@
 // app/api/generate-image/route.ts
 import { NextResponse } from 'next/server';
-import { rateLimiter } from '../../../lib/rate-limiter'; // Reuse your rate limiter if desired
 
-export const runtime = 'edge'; // Optional: Use edge if your plan supports it, otherwise remove
+export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
-    const { prompt } = await req.json();
+    const { prompt, provider = 'stability' } = await req.json();
 
-    if (!process.env.BANANA_API_KEY) {
-      return NextResponse.json(
-        { error: "Server configuration error: API Key missing" },
-        { status: 500 }
-      );
+    switch (provider) {
+      case 'stability':
+        return await generateStabilityImage(prompt);
+      case 'dalle':
+        return await generateDALLEImage(prompt);
+      case 'midjourney':
+        return await generateMidjourneyImage(prompt);
+      default:
+        return NextResponse.json({ error: 'Invalid provider selected' }, { status: 400 });
     }
-
-    // Call Banana.dev from the secure server environment
-    const response = await fetch('https://api.banana.dev/start/v4', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiKey: process.env.BANANA_API_KEY,
-        modelKey: 'stabilityai/stable-diffusion-xl-base-1.0',
-        modelInputs: { 
-          prompt: prompt,
-          num_inference_steps: 25,
-          guidance_scale: 7.5
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return NextResponse.json(
-        { error: `Banana API Error: ${errorText}` },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-
-    // Check for the base64 image output
-    if (data.modelOutputs && data.modelOutputs[0]?.image_base64) {
-      const imageUrl = `data:image/png;base64,${data.modelOutputs[0].image_base64}`;
-      return NextResponse.json({ imageUrl });
-    }
-
-    return NextResponse.json(
-      { error: "No image data received from generation provider" },
-      { status: 500 }
-    );
-
   } catch (error: any) {
     console.error("Image Generation Error:", error);
     return NextResponse.json(
-      { error: error.message || "Internal Server Error" },
+      { error: error.message || "Internal Server Error" }, 
       { status: 500 }
     );
   }
+}
+
+async function generateStabilityImage(prompt: string) {
+  if (!process.env.STABILITY_API_KEY) {
+    return NextResponse.json({ error: "Missing STABILITY_API_KEY" }, { status: 500 });
+  }
+
+  const response = await fetch('https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.STABILITY_API_KEY}`
+    },
+    body: JSON.stringify({
+      text_prompts: [{ text: prompt, weight: 1 }],
+      cfg_scale: 7,
+      steps: 30,
+      samples: 1
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Stability API Error: ${errorText}`);
+  }
+
+  const data = await response.json();
+  
+  // Stability returns an array of artifacts
+  if (data.artifacts && data.artifacts.length > 0) {
+    return NextResponse.json({ 
+      imageUrl: `data:image/png;base64,${data.artifacts[0].base64}` 
+    });
+  }
+
+  throw new Error("No image artifacts received from Stability AI");
+}
+
+async function generateDALLEImage(prompt: string) {
+  if (!process.env.OPENAI_API_KEY) {
+    return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
+  }
+
+  const response = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+      response_format: "b64_json" // Using base64 to match the app's expectation
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`DALL-E API Error: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  
+  if (data.data && data.data.length > 0) {
+    return NextResponse.json({ 
+      imageUrl: `data:image/png;base64,${data.data[0].b64_json}` 
+    });
+  }
+
+  throw new Error("No image data received from DALL-E");
+}
+
+async function generateMidjourneyImage(prompt: string) {
+  // Midjourney does not have an official API. 
+  // This would require a third-party proxy service (e.g., MyMidjourney, GoAPI).
+  return NextResponse.json(
+    { error: "Midjourney integration requires a specific third-party proxy configuration." }, 
+    { status: 501 }
+  );
 }

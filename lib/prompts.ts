@@ -1,8 +1,7 @@
-// lib/prompts.ts
 import { ContentIdea, ContentOutline } from '../types/index';
 
 /**
- * Step 1: Trending Topics
+ * Step 1: Trending Topics Prompt
  */
 export function topicSuggestionPrompt(industry?: string, interests?: string[], targetAudience?: string): string {
   return `
@@ -10,10 +9,10 @@ export function topicSuggestionPrompt(industry?: string, interests?: string[], t
     Context: Current Date ${new Date().toLocaleDateString()}.
     
     Task: Generate 5 trending, high-engagement LinkedIn topics.
-    ${interests?.length ? `Focus areas: ${interests.join(', ')}` : ''}
+    ${interests && interests.length > 0 ? `Focus areas: ${interests.join(', ')}` : ''}
     ${targetAudience ? `Target Audience: ${targetAudience}` : ''}
     
-    Return ONLY valid JSON array:
+    Return ONLY valid JSON array with NO markdown formatting:
     [
       {
         "id": "unique-id",
@@ -27,7 +26,7 @@ export function topicSuggestionPrompt(industry?: string, interests?: string[], t
 }
 
 /**
- * Step 2: Content Ideation
+ * Step 2: Content Ideation Prompt
  */
 export function contentIdeasPrompt(topic: string, userInput: string, contentType: string, tone: string): string {
   return `
@@ -53,12 +52,18 @@ export function contentIdeasPrompt(topic: string, userInput: string, contentType
 }
 
 /**
- * Step 3: Outline Generation
+ * Step 3: Outline Generation Prompt
  */
-export function outlineGenerationPrompt(idea: ContentIdea): string {
+export function outlineGenerationPrompt(idea: ContentIdea, sections: number = 3, includeCallToAction: boolean = true): string {
   return `
     Create a structured outline for this LinkedIn post: "${idea.title}".
     Hook: "${idea.hook}"
+    Sections: ${sections}
+    
+    Generate a structured outline with:
+    1. Attention-grabbing hook (under 150 chars)
+    2. ${sections} main sections
+    3. ${includeCallToAction ? 'Strong call-to-action' : ''}
     
     Return ONLY valid JSON:
     {
@@ -78,12 +83,13 @@ export function outlineGenerationPrompt(idea: ContentIdea): string {
 }
 
 /**
- * Step 4: Content Generation
+ * Step 4: Content Generation Prompt
  */
-export function contentGenerationPrompt(outline: ContentOutline, contentType: string): string {
+export function contentGenerationPrompt(outline: ContentOutline, contentType: string, maxLength: number = 1300): string {
   return `
     Write the full LinkedIn post based on this outline: ${JSON.stringify(outline)}.
     Format: ${contentType}
+    Max Length: ${maxLength}
     
     Rules:
     - Short paragraphs (1-2 sentences)
@@ -95,10 +101,15 @@ export function contentGenerationPrompt(outline: ContentOutline, contentType: st
     {
       "content": {
         "text": "The full post text...",
-        "hashtags": ["#tag1"]
+        "hashtags": ["#tag1"],
+        "characterCount": 1000,
+        "wordCount": 200,
+        "readingTime": 1,
+        "seoScore": 85
       },
       "formatting": {
         "paragraphs": 5,
+        "lineBreaks": 4,
         "emojiCount": 3
       }
     }
@@ -122,21 +133,24 @@ export function imagePromptGenerationPrompt(content: string, contentType: string
           "prompt": "Detailed description for DALL-E 3/Midjourney including lighting, composition, and subject...",
           "placement": "header",
           "aspectRatio": "1:1",
-          "purpose": "Visual Hook"
+          "purpose": "Visual Hook",
+          "style": "${visualStyle}"
         }
-      ]
+      ],
+      "designTips": ["Tip 1", "Tip 2"]
     }
   `;
 }
 
 /**
- * Step 5: SEO Audit
+ * Step 5: SEO Audit Prompt
  */
 export function seoAnalysisPrompt(content: string, topic: string, hashtags: string[]): string {
   return `
     Audit this LinkedIn post for the 2025 Algorithm.
     Content: ${content.substring(0, 500)}...
     Topic: ${topic}
+    Current Hashtags: ${hashtags.join(', ')}
     
     Return ONLY valid JSON:
     {
@@ -149,7 +163,9 @@ export function seoAnalysisPrompt(content: string, topic: string, hashtags: stri
       ],
       "bestPractices": {
         "timing": "Tue 9AM",
-        "keywords": ["keyword1"]
+        "keywords": ["keyword1"],
+        "length": "Optimal",
+        "hashtags": ["#Optimized"]
       }
     }
   `;

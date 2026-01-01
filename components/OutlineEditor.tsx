@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ListOrdered, CheckCircle2, ChevronRight, Plus, Trash2, MoveUp, MoveDown, Loader2, Sparkles, Hash } from 'lucide-react';
 import { useApp } from '../context/AppContext';

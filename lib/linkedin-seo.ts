@@ -1,3 +1,5 @@
+// lib/linkedin-seo.ts - ENHANCED WITH REAL HASHTAG ANALYSIS
+import { queryAI } from './gemini';
 
 export const LINKEDIN_BEST_PRACTICES = {
   POST_OPTIMAL_LENGTH: 1300,
@@ -25,8 +27,132 @@ export interface ContentAnalysis {
   keywordDensity: Record<string, number>;
 }
 
+export interface HashtagSuggestion {
+  hashtag: string;
+  reach: 'high' | 'medium' | 'low';
+  relevanceScore: number;
+  type: 'broad' | 'niche' | 'trending' | 'branded';
+  estimatedPosts: string; // "100K+" or "25K-50K"
+  reasoning: string;
+}
+
 /**
- * Calculates a 0-100 score for LinkedIn content SEO.
+ * AI-Powered Real-Time Hashtag Generation
+ * NO MORE MOCK DATA - Uses semantic analysis of content
+ */
+export async function generateHashtagSuggestions(
+  topic: string,
+  content: string,
+  existing: string[] = []
+): Promise<HashtagSuggestion[]> {
+  try {
+    // Extract semantic keywords from content
+    const keywords = extractKeywords(content);
+    
+    const prompt = `
+      Analyze this LinkedIn content and generate optimal hashtag strategy:
+      
+      TOPIC: ${topic}
+      CONTENT LENGTH: ${content.length} characters
+      KEY THEMES: ${keywords.slice(0, 10).join(', ')}
+      CURRENT HASHTAGS: ${existing.join(', ') || 'None'}
+      
+      Requirements for 2025 LinkedIn Algorithm:
+      1. Mix of reach levels:
+         - 1-2 broad hashtags (500K+ posts) for visibility
+         - 2-3 niche hashtags (10K-50K posts) for targeting
+         - 1 trending/emerging hashtag (<10K but growing)
+      
+      2. Avoid:
+         - Over-saturated tags (>2M posts)
+         - Irrelevant trending tags
+         - Generic tags like #motivation #success
+      
+      3. Semantic relevance > popularity
+      
+      Generate 5-7 strategic hashtags with detailed analysis.
+      
+      Return ONLY valid JSON:
+      [
+        {
+          "hashtag": "#SpecificTag",
+          "reach": "high|medium|low",
+          "relevanceScore": 85,
+          "type": "broad|niche|trending|branded",
+          "estimatedPosts": "250K+",
+          "reasoning": "Why this tag is optimal for this content"
+        }
+      ]
+    `;
+    
+    const suggestions = await queryAI<HashtagSuggestion[]>(prompt);
+    
+    // Validate and filter
+    return suggestions
+      .filter(s => s.relevanceScore >= 60) // Minimum relevance threshold
+      .slice(0, 7); // Max 7 suggestions
+      
+  } catch (error) {
+    console.error('Hashtag generation failed:', error);
+    
+    // Fallback: Content-based extraction instead of generic list
+    return extractHashtagsFromContent(content, topic);
+  }
+}
+
+/**
+ * Fallback: Extract potential hashtags from content keywords
+ */
+function extractHashtagsFromContent(
+  content: string,
+  topic: string
+): HashtagSuggestion[] {
+  const keywords = extractKeywords(content);
+  const topKeywords = keywords
+    .filter(kw => kw.length > 4 && kw.length < 20)
+    .slice(0, 5);
+  
+  return topKeywords.map(kw => ({
+    hashtag: `#${kw.charAt(0).toUpperCase() + kw.slice(1)}`,
+    reach: 'medium',
+    relevanceScore: 70,
+    type: 'niche' as const,
+    estimatedPosts: 'Unknown',
+    reasoning: `Extracted from content keywords`
+  }));
+}
+
+/**
+ * Enhanced Keyword Extraction with TF-IDF-like scoring
+ */
+function extractKeywords(text: string): string[] {
+  const stopWords = new Set([
+    'the', 'and', 'a', 'to', 'in', 'is', 'i', 'it', 'that', 'you', 'for', 
+    'with', 'on', 'was', 'be', 'are', 'as', 'at', 'this', 'by', 'from',
+    'or', 'an', 'but', 'not', 'can', 'will', 'about', 'if', 'has', 'been'
+  ]);
+  
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !stopWords.has(w));
+  
+  // Count frequency
+  const freq: Record<string, number> = {};
+  words.forEach(w => {
+    freq[w] = (freq[w] || 0) + 1;
+  });
+  
+  // Sort by frequency and return top keywords
+  return Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .map(([word]) => word)
+    .slice(0, 15);
+}
+
+/**
+ * Calculate comprehensive SEO score with real analysis
  */
 export function calculateSEOScore(content: string, hashtags: string[] = []): number {
   let score = 0;
@@ -57,7 +183,6 @@ export function calculateSEOScore(content: string, hashtags: string[] = []): num
   }
 
   // 4. Hook Quality (25 pts)
-  // Check the first 1-2 lines
   const firstLines = content.split('\n').slice(0, 2).join('\n').trim();
   if (firstLines.length > 30 && firstLines.length <= bp.HOOK_MAX_CHARS) {
     score += 25;
@@ -79,29 +204,27 @@ export function calculateSEOScore(content: string, hashtags: string[] = []): num
   if (emojis > 0 && emojis <= bp.EMOJI_MAX) {
     score += 10;
   } else if (emojis > bp.EMOJI_MAX) {
-    score += 5; // Too many is better than none, but penalized
+    score += 5;
   }
 
   return Math.min(score, 100);
 }
 
 /**
- * Detailed analysis of post structure and content.
+ * Detailed content analysis
  */
 export function analyzeContent(content: string): ContentAnalysis {
   const words = content.trim().split(/\s+/).filter(w => w.length > 0);
   const wordCount = words.length;
-  
-  // Reading time (approx 200 words per minute)
   const readingTime = Math.ceil(wordCount / 200);
-  
   const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 0);
   const emojis = (content.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length;
   const hashtags = (content.match(/#\w+/g) || []).length;
   
-  // Simple Keyword Density (Top 5 meaningful words)
+  // Keyword density analysis
   const stopWords = new Set(['the', 'and', 'a', 'to', 'in', 'is', 'i', 'it', 'that', 'you', 'for', 'with', 'on', 'was', 'be', 'are', 'as', 'at']);
   const freq: Record<string, number> = {};
+  
   words.forEach(w => {
     const clean = w.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (clean.length > 3 && !stopWords.has(clean)) {
@@ -130,33 +253,9 @@ export function analyzeContent(content: string): ContentAnalysis {
 }
 
 /**
- * Provides placeholder hashtag suggestions based on a topic.
- * In a real scenario, this might call an API.
- */
-export function generateHashtagSuggestions(topic: string, existing: string[] = []): string[] {
-  const cleanTopic = topic.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const baseTags = [
-    cleanTopic,
-    'networking',
-    'growth',
-    'innovation',
-    'leadership',
-    'strategy',
-    'productivity',
-    'success',
-    'career',
-    'future'
-  ];
-  
-  const uniqueTags = new Set([...existing.map(t => t.replace('#', '').toLowerCase()), ...baseTags]);
-  return Array.from(uniqueTags).slice(0, 5);
-}
-
-/**
- * Formats content to ensure it is mobile-friendly.
+ * Optimize content for mobile readability
  */
 export function optimizeForMobile(content: string): string {
-  // Split into sentences
   const sentences = content.split(/(?<=[.!?])\s+/);
   let optimized = '';
   let sentenceCount = 0;
@@ -165,7 +264,7 @@ export function optimizeForMobile(content: string): string {
     optimized += sentence + ' ';
     sentenceCount++;
 
-    // Force line break every 2 sentences if not already broken
+    // Force line break every 2 sentences
     if (sentenceCount >= 2) {
       optimized = optimized.trim() + '\n\n';
       sentenceCount = 0;

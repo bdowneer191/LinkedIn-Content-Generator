@@ -1,24 +1,27 @@
-// app/api/generate-image/route.ts
-import { NextResponse } from 'next/server';
+// api/generate-image.ts
+export const config = {
+  runtime: 'edge',
+};
 
-export const runtime = 'edge';
+export default async function handler(req: Request) {
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
+  }
 
-export async function POST(req: Request) {
   try {
     const { prompt } = await req.json();
     
-    // 1. Check for API Key (Server-Side Only)
-    const apiKey = process.env.STABILITY_API_KEY || process.env.BANANA_API_KEY;
+    // Server-Side API Key Check
+    const apiKey = process.env.STABILITY_API_KEY;
     
     if (!apiKey) {
-      console.error("Missing Image Gen API Key");
-      return NextResponse.json(
-        { error: "Image generation service not configured (Missing API Key)" }, 
-        { status: 500 }
+      return new Response(
+        JSON.stringify({ error: "Server Error: Missing Image Gen API Key" }), 
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // 2. Call Stability AI (Standard Production Implementation)
+    // Call Stability AI
     const response = await fetch('https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image', {
       method: 'POST',
       headers: {
@@ -35,22 +38,24 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Provider Error: ${errorText}`);
+      throw new Error(`Stability API Error: ${errorText}`);
     }
 
     const data = await response.json();
     
-    // 3. Return Base64 Image
     if (data.artifacts && data.artifacts.length > 0) {
-      return NextResponse.json({ 
-        imageUrl: `data:image/png;base64,${data.artifacts[0].base64}` 
-      });
+      return new Response(
+        JSON.stringify({ imageUrl: `data:image/png;base64,${data.artifacts[0].base64}` }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    throw new Error("No image generated");
+    throw new Error("No image data received");
 
   } catch (error: any) {
-    console.error("Image Route Error:", error);
-    return NextResponse.json({ error: error.message || "Generation failed" }, { status: 500 });
+    return new Response(
+      JSON.stringify({ error: error.message || "Image generation failed" }), 
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }

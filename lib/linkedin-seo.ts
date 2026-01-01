@@ -1,4 +1,3 @@
-// lib/linkedin-seo.ts - ENHANCED WITH REAL HASHTAG ANALYSIS
 import { queryAI } from './gemini';
 
 export const LINKEDIN_BEST_PRACTICES = {
@@ -32,13 +31,26 @@ export interface HashtagSuggestion {
   reach: 'high' | 'medium' | 'low';
   relevanceScore: number;
   type: 'broad' | 'niche' | 'trending' | 'branded';
-  estimatedPosts: string; // "100K+" or "25K-50K"
+  estimatedPosts: string;
   reasoning: string;
+}
+
+export interface DynamicSEOScore {
+  overallScore: number;
+  breakdown: {
+    keywordOptimization: number;
+    engagementPotential: number;
+    algorithmAlignment: number;
+    readability: number;
+  };
+  competitorComparison: string;
+  predictedReach: string;
+  suggestions: string[];
 }
 
 /**
  * AI-Powered Real-Time Hashtag Generation
- * NO MORE MOCK DATA - Uses semantic analysis of content
+ * Uses semantic analysis of content to find relevant tags.
  */
 export async function generateHashtagSuggestions(
   topic: string,
@@ -46,7 +58,7 @@ export async function generateHashtagSuggestions(
   existing: string[] = []
 ): Promise<HashtagSuggestion[]> {
   try {
-    // Extract semantic keywords from content
+    // Extract semantic keywords locally to guide the AI
     const keywords = extractKeywords(content);
     
     const prompt = `
@@ -87,26 +99,91 @@ export async function generateHashtagSuggestions(
     
     const suggestions = await queryAI<HashtagSuggestion[]>(prompt);
     
-    // Validate and filter
+    // Validate and filter results
     return suggestions
-      .filter(s => s.relevanceScore >= 60) // Minimum relevance threshold
-      .slice(0, 7); // Max 7 suggestions
+      .filter(s => s.relevanceScore >= 60)
+      .slice(0, 7);
       
   } catch (error) {
     console.error('Hashtag generation failed:', error);
-    
-    // Fallback: Content-based extraction instead of generic list
-    return extractHashtagsFromContent(content, topic);
+    // Graceful fallback to local extraction if AI fails
+    return extractHashtagsFromContent(content);
   }
 }
 
 /**
- * Fallback: Extract potential hashtags from content keywords
+ * Advanced Dynamic SEO Scoring
+ * Combines local rule-based scoring with AI competitive analysis.
  */
-function extractHashtagsFromContent(
+export async function calculateDynamicSEOScore(
   content: string,
-  topic: string
-): HashtagSuggestion[] {
+  topic: string,
+  hashtags: string[]
+): Promise<DynamicSEOScore> {
+  // 1. Run Local Analysis (Instant)
+  const localScore = calculateSEOScore(content, hashtags);
+  const localMetrics = analyzeContent(content);
+  
+  // 2. Run AI Analysis (Deep Dive)
+  try {
+    const prompt = `
+      Act as a LinkedIn Algorithm Expert. Compare this post against top-performing content in the "${topic}" niche.
+      
+      CONTENT: "${content.substring(0, 800)}..."
+      HASHTAGS: ${hashtags.join(', ')}
+      
+      Analyze:
+      1. Keyword optimization vs. competitors
+      2. Engagement likelihood (based on hook quality, CTA strength, formatting)
+      3. Algorithm favorability (dwell time potential)
+      4. Reach potential
+      
+      Return ONLY valid JSON:
+      {
+        "keywordScore": 85,
+        "engagementScore": 90,
+        "algorithmScore": 80,
+        "vsCompetitors": "Better/Worse/Similar because...",
+        "reachEstimate": "High/Medium/Low",
+        "suggestions": ["Tip 1", "Tip 2"]
+      }
+    `;
+
+    const aiResult = await queryAI<any>(prompt);
+
+    return {
+      overallScore: Math.round((localScore + ((aiResult.keywordScore + aiResult.engagementScore + aiResult.algorithmScore) / 3)) / 2),
+      breakdown: {
+        keywordOptimization: aiResult.keywordScore,
+        engagementPotential: aiResult.engagementScore,
+        algorithmAlignment: aiResult.algorithmScore,
+        readability: calculateReadabilityScore(localMetrics)
+      },
+      competitorComparison: aiResult.vsCompetitors,
+      predictedReach: aiResult.reachEstimate,
+      suggestions: aiResult.suggestions
+    };
+  } catch (error) {
+    console.error("Dynamic SEO Analysis failed, falling back to local score", error);
+    return {
+      overallScore: localScore,
+      breakdown: {
+        keywordOptimization: 0,
+        engagementPotential: 0,
+        algorithmAlignment: 0,
+        readability: calculateReadabilityScore(localMetrics)
+      },
+      competitorComparison: "Analysis unavailable",
+      predictedReach: "Unknown",
+      suggestions: ["Ensure hooks are under 150 chars", "Use 3-5 relevant hashtags"]
+    };
+  }
+}
+
+/**
+ * Fallback: Extract potential hashtags locally
+ */
+function extractHashtagsFromContent(content: string): HashtagSuggestion[] {
   const keywords = extractKeywords(content);
   const topKeywords = keywords
     .filter(kw => kw.length > 4 && kw.length < 20)
@@ -116,14 +193,14 @@ function extractHashtagsFromContent(
     hashtag: `#${kw.charAt(0).toUpperCase() + kw.slice(1)}`,
     reach: 'medium',
     relevanceScore: 70,
-    type: 'niche' as const,
+    type: 'niche',
     estimatedPosts: 'Unknown',
-    reasoning: `Extracted from content keywords`
+    reasoning: 'Extracted from content keywords (Fallback)'
   }));
 }
 
 /**
- * Enhanced Keyword Extraction with TF-IDF-like scoring
+ * Enhanced Keyword Extraction with frequency scoring
  */
 function extractKeywords(text: string): string[] {
   const stopWords = new Set([
@@ -138,13 +215,11 @@ function extractKeywords(text: string): string[] {
     .split(/\s+/)
     .filter(w => w.length > 3 && !stopWords.has(w));
   
-  // Count frequency
   const freq: Record<string, number> = {};
   words.forEach(w => {
     freq[w] = (freq[w] || 0) + 1;
   });
   
-  // Sort by frequency and return top keywords
   return Object.entries(freq)
     .sort((a, b) => b[1] - a[1])
     .map(([word]) => word)
@@ -152,7 +227,7 @@ function extractKeywords(text: string): string[] {
 }
 
 /**
- * Calculate comprehensive SEO score with real analysis
+ * Calculates a 0-100 score based on local best practices (Synchronous)
  */
 export function calculateSEOScore(content: string, hashtags: string[] = []): number {
   let score = 0;
@@ -190,14 +265,11 @@ export function calculateSEOScore(content: string, hashtags: string[] = []): num
     score += 10;
   }
 
-  // 5. Engagement Triggers / CTA (10 pts)
+  // 5. Engagement Triggers (10 pts)
   const lowers = content.toLowerCase();
-  const hasCTA = lowers.includes('comment') || 
-                 lowers.includes('?') || 
-                 lowers.includes('share') || 
-                 lowers.includes('agree') ||
-                 lowers.includes('thoughts');
-  if (hasCTA) score += 10;
+  if (lowers.includes('?') || lowers.includes('comment') || lowers.includes('thoughts')) {
+    score += 10;
+  }
 
   // 6. Emoji Usage (10 pts)
   const emojis = (content.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length;
@@ -211,7 +283,7 @@ export function calculateSEOScore(content: string, hashtags: string[] = []): num
 }
 
 /**
- * Detailed content analysis
+ * Detailed local content analysis
  */
 export function analyzeContent(content: string): ContentAnalysis {
   const words = content.trim().split(/\s+/).filter(w => w.length > 0);
@@ -221,7 +293,6 @@ export function analyzeContent(content: string): ContentAnalysis {
   const emojis = (content.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length;
   const hashtags = (content.match(/#\w+/g) || []).length;
   
-  // Keyword density analysis
   const stopWords = new Set(['the', 'and', 'a', 'to', 'in', 'is', 'i', 'it', 'that', 'you', 'for', 'with', 'on', 'was', 'be', 'are', 'as', 'at']);
   const freq: Record<string, number> = {};
   
@@ -253,7 +324,19 @@ export function analyzeContent(content: string): ContentAnalysis {
 }
 
 /**
- * Optimize content for mobile readability
+ * Helper to calculate a readability score from local metrics
+ */
+function calculateReadabilityScore(metrics: ContentAnalysis): number {
+  let score = 100;
+  // Penalty for long paragraphs
+  if (metrics.wordCount / metrics.paragraphCount > 50) score -= 20;
+  // Penalty for too few line breaks
+  if (metrics.lineBreakCount < 3) score -= 15;
+  return Math.max(0, score);
+}
+
+/**
+ * Formats content for mobile readability
  */
 export function optimizeForMobile(content: string): string {
   const sentences = content.split(/(?<=[.!?])\s+/);
@@ -264,7 +347,6 @@ export function optimizeForMobile(content: string): string {
     optimized += sentence + ' ';
     sentenceCount++;
 
-    // Force line break every 2 sentences
     if (sentenceCount >= 2) {
       optimized = optimized.trim() + '\n\n';
       sentenceCount = 0;

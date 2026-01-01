@@ -1,12 +1,3 @@
-import React, { useState } from 'react';
-import { Sparkles, ArrowRight, Search, Edit3, Loader2 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
-import { queryAI } from '../lib/gemini';
-import { topicSuggestionPrompt } from '../lib/prompts';
-import { rateLimiter } from '../lib/rate-limiter';
-import { cn } from '../lib/utils';
-import { ContentTopic } from '../types/index';
-
 export const TopicSelector: React.FC = () => {
   const { state, updateState, goToStep } = useApp();
   const [activeTab, setActiveTab] = useState<'auto' | 'manual'>('auto');
@@ -49,53 +40,70 @@ export const TopicSelector: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
-      <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex border-b border-gray-100">
           <button 
             onClick={() => setActiveTab('auto')}
             className={cn(
-              "flex-1 py-5 text-sm font-bold flex items-center justify-center gap-2 transition-all",
-              activeTab === 'auto' ? "text-primary border-b-2 border-primary bg-blue-50/30" : "text-gray-400 hover:text-gray-600"
+              "flex-1 py-5 text-sm font-bold flex items-center justify-center gap-2 transition-all relative",
+              activeTab === 'auto' ? "text-primary bg-blue-50" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
             )}
           >
-            <Sparkles size={18} /> AI Suggestions
+            <Sparkles size={18} className={activeTab === 'auto' ? 'text-primary' : ''} /> 
+            AI Suggestions
+            {activeTab === 'auto' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
           </button>
           <button 
             onClick={() => setActiveTab('manual')}
             className={cn(
-              "flex-1 py-5 text-sm font-bold flex items-center justify-center gap-2 transition-all",
-              activeTab === 'manual' ? "text-primary border-b-2 border-primary bg-blue-50/30" : "text-gray-400 hover:text-gray-600"
+              "flex-1 py-5 text-sm font-bold flex items-center justify-center gap-2 transition-all relative",
+              activeTab === 'manual' ? "text-primary bg-blue-50" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
             )}
           >
-            <Edit3 size={18} /> Manual Input
+            <Edit3 size={18} className={activeTab === 'manual' ? 'text-primary' : ''} /> 
+            Manual Input
+            {activeTab === 'manual' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
           </button>
         </div>
 
-        <div className="p-8">
+        <div className="p-12">
           {activeTab === 'auto' ? (
-            <div className="space-y-6">
-              <h3 className="text-xl font-bold text-gray-900">What industry or domain are you focused on?</h3>
-              <div className="flex gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="text"
-                    placeholder="e.g. SEO, Digital Marketing, AI..."
-                    className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none transition-all font-medium"
-                    value={industry}
-                    onChange={(e) => setIndustry(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleGenerateTopics()}
-                  />
-                </div>
-                <button
-                  onClick={handleGenerateTopics}
-                  disabled={state.isGenerating || !industry}
-                  className="bg-primary text-white px-8 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
-                >
-                  {state.isGenerating ? <Loader2 className="animate-spin" /> : "Discover Trends"}
-                </button>
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-2xl font-black text-gray-900 mb-2">What industry or domain are you focused on?</h3>
+                <p className="text-gray-500 text-sm">We'll analyze trending topics and high-engagement content in your niche</p>
               </div>
+              
+              <div className="relative">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={22} />
+                <input
+                  type="text"
+                  placeholder="digital marketing"
+                  className="w-full pl-14 pr-6 py-5 rounded-2xl border-2 border-gray-200 focus:border-primary outline-none transition-all font-medium text-lg bg-gray-50 focus:bg-white"
+                  value={industry}
+                  onChange={(e) => setIndustry(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGenerateTopics()}
+                />
+              </div>
+
+              <button
+                onClick={handleGenerateTopics}
+                disabled={state.isGenerating || !industry}
+                className="w-full bg-primary text-white py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-500/20 active:scale-[0.99]"
+              >
+                {state.isGenerating ? (
+                  <>
+                    <Loader2 className="animate-spin" size={24} />
+                    Analyzing trends...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={24} />
+                    Discover Trends
+                  </>
+                )}
+              </button>
             </div>
           ) : (
             <div className="space-y-6">
@@ -124,29 +132,47 @@ export const TopicSelector: React.FC = () => {
       </div>
 
       {activeTab === 'auto' && state.topics.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
           {state.topics.map((topic) => (
             <div
               key={topic.id}
               onClick={() => handleSelectTopic(topic)}
-              className="group bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:border-primary hover:shadow-xl transition-all cursor-pointer"
+              className="group bg-white p-8 rounded-3xl shadow-sm border-2 border-gray-100 hover:border-primary hover:shadow-2xl transition-all cursor-pointer"
             >
-              <div className="flex justify-between items-start mb-4">
-                <div className={cn(
-                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
-                  topic.popularity > 8 ? "bg-amber-100 text-amber-700" : "bg-blue-50 text-blue-700"
-                )}>
-                  {topic.popularity > 8 ? "🔥 Hot" : `Score: ${topic.popularity}/10`}
+              <div className="flex items-start justify-between gap-6">
+                <div className="flex-1 space-y-4">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {topic.popularity > 8 && (
+                      <div className="flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-full">
+                        <span className="text-lg">🔥</span>
+                        <span className="text-xs font-black uppercase tracking-wider">Hot</span>
+                      </div>
+                    )}
+                    <div className="text-xs font-bold text-gray-400">
+                      Score: {topic.popularity}/10
+                    </div>
+                  </div>
+                  
+                  <h4 className="font-black text-2xl text-gray-900 group-hover:text-primary transition-colors leading-tight">
+                    {topic.title}
+                  </h4>
+                  
+                  <p className="text-gray-600 text-base leading-relaxed font-medium">
+                    {topic.description}
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {topic.keywords.map(kw => (
+                      <span key={kw} className="text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1.5 rounded-lg">
+                        #{kw}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <h4 className="font-black text-lg mb-2 text-gray-900 group-hover:text-primary transition-colors">{topic.title}</h4>
-              <p className="text-gray-500 text-sm leading-relaxed mb-6">{topic.description}</p>
-              <div className="flex flex-wrap gap-2">
-                {topic.keywords.map(kw => (
-                  <span key={kw} className="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-1 rounded-md">
-                    #{kw}
-                  </span>
-                ))}
+                
+                <button className="shrink-0 w-12 h-12 rounded-full bg-gray-100 group-hover:bg-primary text-gray-400 group-hover:text-white flex items-center justify-center transition-all">
+                  <ArrowRight size={24} />
+                </button>
               </div>
             </div>
           ))}

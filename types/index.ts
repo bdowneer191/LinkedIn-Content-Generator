@@ -1,4 +1,3 @@
-
 export type Industry = string;
 
 export interface ContentTopic {
@@ -104,6 +103,8 @@ export interface AppState {
   seoAnalysis: SEOAnalysis | null;
   isGenerating: boolean;
   error: string | null;
+  generatedImage?: string; // Added field for storing generated image URL
+  bananaApiKey?: string;   // Added field for storing Banana.dev API key
 }
 
 // API Response types

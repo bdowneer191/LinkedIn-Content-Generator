@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ShieldCheck, AlertCircle, Info, CheckCircle2, ListFilter, ArrowRightCircle, Zap, TrendingUp, Globe, Target, Hash } from 'lucide-react';
 import { useApp } from '../context/AppContext';

@@ -1,12 +1,9 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Sparkles, ArrowRight, Search, Edit3, Loader2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { queryAI } from '../lib/gemini';
-import { topicSuggestionPrompt } from '../lib/prompts';
-import { rateLimiter } from '../lib/rate-limiter';
 import { cn } from '../lib/utils';
 import { ContentTopic } from '../types/index';
+import { toast } from 'sonner';
 
 export const TopicSelector: React.FC = () => {
   const { state, updateState, goToStep } = useApp();
@@ -15,19 +12,46 @@ export const TopicSelector: React.FC = () => {
   const [manualTopic, setManualTopic] = useState('');
   
   const handleGenerateTopics = async () => {
-    if (!industry) return;
+    if (!industry.trim()) return;
+    
     updateState({ isGenerating: true, error: null });
+    
     try {
-      const prompt = topicSuggestionPrompt(industry);
-      const result = await rateLimiter.add(() => queryAI<any>(prompt));
-      const topics = (result.topics || result).map((t: any, idx: number) => ({
+      // Updated: Fetch from the API route instead of client-side generation
+      // This leverages the server-side caching and rate limiting
+      const response = await fetch('/api/topics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ industry }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate topics');
+      }
+
+      const result = await response.json();
+      
+      // Handle potential response variations (array vs object wrapper)
+      const rawTopics = Array.isArray(result) ? result : (result.topics || []);
+
+      const topics = rawTopics.map((t: any, idx: number) => ({
         ...t,
-        id: `topic-${Date.now()}-${idx}`,
+        id: t.id || `topic-${Date.now()}-${idx}`,
         source: 'auto'
       }));
+
+      if (topics.length === 0) {
+        throw new Error("No topics generated. Please try a different industry.");
+      }
+
       updateState({ topics, industry, isGenerating: false });
     } catch (err: any) {
+      console.error("Topic Generation Error:", err);
       updateState({ error: err.message, isGenerating: false });
+      toast.error(err.message);
     }
   };
 
@@ -38,6 +62,7 @@ export const TopicSelector: React.FC = () => {
 
   const handleManualContinue = () => {
     if (manualTopic.length < 10) return;
+    
     const topic: ContentTopic = {
       id: `manual-${Date.now()}`,
       title: manualTopic,
@@ -46,6 +71,7 @@ export const TopicSelector: React.FC = () => {
       keywords: manualTopic.split(' ').filter(w => w.length > 4).slice(0, 3),
       source: 'manual'
     };
+    
     handleSelectTopic(topic);
   };
 
@@ -91,7 +117,7 @@ export const TopicSelector: React.FC = () => {
                 </div>
                 <button
                   onClick={handleGenerateTopics}
-                  disabled={state.isGenerating || !industry}
+                  disabled={state.isGenerating || !industry.trim()}
                   className="bg-primary text-white px-8 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
                 >
                   {state.isGenerating ? <Loader2 className="animate-spin" /> : "Discover Trends"}

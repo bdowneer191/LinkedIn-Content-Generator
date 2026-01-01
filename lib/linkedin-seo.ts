@@ -1,29 +1,19 @@
 import { queryAI } from './gemini';
 
+// Updated Constants (From your specific update request)
 export const LINKEDIN_BEST_PRACTICES = {
-  POST_OPTIMAL_LENGTH: 1300,
   POST_MAX_LENGTH: 3000,
-  ARTICLE_MIN_LENGTH: 1000,
-  ARTICLE_OPTIMAL_LENGTH: 1500,
-  PARAGRAPH_MAX_SENTENCES: 3,
-  LINE_BREAKS_MIN: 5,
-  EMOJI_MAX: 3,
   HASHTAG_MIN: 3,
   HASHTAG_MAX: 5,
-  HOOK_MAX_CHARS: 150,
-  KEYWORD_DENSITY_MIN: 0.01,
-  KEYWORD_DENSITY_MAX: 0.03,
 };
 
+// Updated Interface to match the new analyzeContent return shape
 export interface ContentAnalysis {
   characterCount: number;
   wordCount: number;
   readingTime: number;
   paragraphCount: number;
-  lineBreakCount: number;
-  emojiCount: number;
   hashtagCount: number;
-  keywordDensity: Record<string, number>;
 }
 
 export interface HashtagSuggestion {
@@ -106,7 +96,6 @@ export async function generateHashtagSuggestions(
       
   } catch (error) {
     console.error('Hashtag generation failed:', error);
-    // Graceful fallback to local extraction if AI fails
     return extractHashtagsFromContent(content);
   }
 }
@@ -151,13 +140,16 @@ export async function calculateDynamicSEOScore(
 
     const aiResult = await queryAI<any>(prompt);
 
+    // Calculate a simple readability score based on new metrics
+    const readabilityScore = Math.max(0, 100 - (localMetrics.wordCount / Math.max(1, localMetrics.paragraphCount) > 50 ? 20 : 0));
+
     return {
       overallScore: Math.round((localScore + ((aiResult.keywordScore + aiResult.engagementScore + aiResult.algorithmScore) / 3)) / 2),
       breakdown: {
         keywordOptimization: aiResult.keywordScore,
         engagementPotential: aiResult.engagementScore,
         algorithmAlignment: aiResult.algorithmScore,
-        readability: calculateReadabilityScore(localMetrics)
+        readability: readabilityScore
       },
       competitorComparison: aiResult.vsCompetitors,
       predictedReach: aiResult.reachEstimate,
@@ -171,7 +163,7 @@ export async function calculateDynamicSEOScore(
         keywordOptimization: 0,
         engagementPotential: 0,
         algorithmAlignment: 0,
-        readability: calculateReadabilityScore(localMetrics)
+        readability: 0
       },
       competitorComparison: "Analysis unavailable",
       predictedReach: "Unknown",
@@ -181,8 +173,46 @@ export async function calculateDynamicSEOScore(
 }
 
 /**
- * Fallback: Extract potential hashtags locally
+ * Calculates a 0-100 score based on updated local best practices
  */
+export function calculateSEOScore(content: string, hashtags: string[] = []): number {
+  let score = 0;
+  
+  // Length Check: Optimal 500-2000 chars
+  if (content.length > 500 && content.length < 2000) score += 30;
+  
+  // Baseline Score for minimal content
+  if (content.length > 50) score += 20;
+
+  // CTA Check
+  if (content.includes('?')) score += 10; 
+  
+  // Readability / Formatting
+  const lineBreaks = content.split('\n\n').length;
+  if (lineBreaks > 3) score += 20;
+  
+  // Hashtag usage
+  if (hashtags.length >= LINKEDIN_BEST_PRACTICES.HASHTAG_MIN) score += 20;
+  
+  return Math.min(score, 100);
+}
+
+/**
+ * Detailed local content analysis (Updated Logic)
+ */
+export function analyzeContent(content: string): ContentAnalysis {
+  const words = content.split(/\s+/).filter(w => w.length > 0).length;
+  return {
+    characterCount: content.length,
+    wordCount: words,
+    readingTime: Math.ceil(words / 200),
+    paragraphCount: content.split('\n\n').length,
+    hashtagCount: (content.match(/#/g) || []).length
+  };
+}
+
+// --- Helpers ---
+
 function extractHashtagsFromContent(content: string): HashtagSuggestion[] {
   const keywords = extractKeywords(content);
   const topKeywords = keywords
@@ -199,9 +229,6 @@ function extractHashtagsFromContent(content: string): HashtagSuggestion[] {
   }));
 }
 
-/**
- * Enhanced Keyword Extraction with frequency scoring
- */
 function extractKeywords(text: string): string[] {
   const stopWords = new Set([
     'the', 'and', 'a', 'to', 'in', 'is', 'i', 'it', 'that', 'you', 'for', 
@@ -224,115 +251,6 @@ function extractKeywords(text: string): string[] {
     .sort((a, b) => b[1] - a[1])
     .map(([word]) => word)
     .slice(0, 15);
-}
-
-/**
- * Calculates a 0-100 score based on local best practices (Synchronous)
- */
-export function calculateSEOScore(content: string, hashtags: string[] = []): number {
-  let score = 0;
-  const bp = LINKEDIN_BEST_PRACTICES;
-
-  // 1. Length Check (20 pts)
-  if (content.length >= 800 && content.length <= bp.POST_MAX_LENGTH) {
-    score += 20;
-  } else if (content.length > 300) {
-    score += 10;
-  }
-
-  // 2. Line Breaks / Formatting (15 pts)
-  const lineBreaks = (content.match(/\n\n/g) || []).length;
-  if (lineBreaks >= bp.LINE_BREAKS_MIN) {
-    score += 15;
-  } else if (lineBreaks >= 2) {
-    score += 7;
-  }
-
-  // 3. Hashtags (20 pts)
-  const detectedHashtags = (content.match(/#\w+/g) || []).length;
-  const totalHashtags = Math.max(detectedHashtags, hashtags.length);
-  if (totalHashtags >= bp.HASHTAG_MIN && totalHashtags <= bp.HASHTAG_MAX) {
-    score += 20;
-  } else if (totalHashtags > 0 && totalHashtags < bp.HASHTAG_MIN) {
-    score += 10;
-  }
-
-  // 4. Hook Quality (25 pts)
-  const firstLines = content.split('\n').slice(0, 2).join('\n').trim();
-  if (firstLines.length > 30 && firstLines.length <= bp.HOOK_MAX_CHARS) {
-    score += 25;
-  } else if (firstLines.length > 0) {
-    score += 10;
-  }
-
-  // 5. Engagement Triggers (10 pts)
-  const lowers = content.toLowerCase();
-  if (lowers.includes('?') || lowers.includes('comment') || lowers.includes('thoughts')) {
-    score += 10;
-  }
-
-  // 6. Emoji Usage (10 pts)
-  const emojis = (content.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length;
-  if (emojis > 0 && emojis <= bp.EMOJI_MAX) {
-    score += 10;
-  } else if (emojis > bp.EMOJI_MAX) {
-    score += 5;
-  }
-
-  return Math.min(score, 100);
-}
-
-/**
- * Detailed local content analysis
- */
-export function analyzeContent(content: string): ContentAnalysis {
-  const words = content.trim().split(/\s+/).filter(w => w.length > 0);
-  const wordCount = words.length;
-  const readingTime = Math.ceil(wordCount / 200);
-  const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 0);
-  const emojis = (content.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length;
-  const hashtags = (content.match(/#\w+/g) || []).length;
-  
-  const stopWords = new Set(['the', 'and', 'a', 'to', 'in', 'is', 'i', 'it', 'that', 'you', 'for', 'with', 'on', 'was', 'be', 'are', 'as', 'at']);
-  const freq: Record<string, number> = {};
-  
-  words.forEach(w => {
-    const clean = w.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (clean.length > 3 && !stopWords.has(clean)) {
-      freq[clean] = (freq[clean] || 0) + 1;
-    }
-  });
-
-  const density: Record<string, number> = {};
-  Object.entries(freq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .forEach(([word, count]) => {
-      density[word] = count / wordCount;
-    });
-
-  return {
-    characterCount: content.length,
-    wordCount,
-    readingTime,
-    paragraphCount: paragraphs.length,
-    lineBreakCount: (content.match(/\n/g) || []).length,
-    emojiCount: emojis,
-    hashtagCount: hashtags,
-    keywordDensity: density,
-  };
-}
-
-/**
- * Helper to calculate a readability score from local metrics
- */
-function calculateReadabilityScore(metrics: ContentAnalysis): number {
-  let score = 100;
-  // Penalty for long paragraphs
-  if (metrics.wordCount / metrics.paragraphCount > 50) score -= 20;
-  // Penalty for too few line breaks
-  if (metrics.lineBreakCount < 3) score -= 15;
-  return Math.max(0, score);
 }
 
 /**

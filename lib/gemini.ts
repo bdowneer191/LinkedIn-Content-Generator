@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 
+// Initialize AI. We use the OR operator to catch whichever variable Vite injected.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
 
 // FIXED: Use correct model name
@@ -64,48 +65,26 @@ export async function queryAI<T>(prompt: string): Promise<T> {
   try {
     const text = await generateWithRetry(prompt, 3, true);
     
-    // Remove markdown code blocks if present
-    let cleaned = text.trim();
+    // Robust JSON extraction using Regex
+    // This finds the first { or [ and the last } or ]
+    // It ignores any markdown code fences or conversational text before/after
+    // [\s\S]* matches any character including newlines
+    const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     
-    // Strip markdown formatting
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*\n?/, '').replace(/\n?\s*```$/, '');
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*\n?/, '').replace(/\n?\s*```$/, '');
-    }
-    
-    // Find JSON boundaries
-    const startIdx = cleaned.indexOf('{');
-    const arrayStartIdx = cleaned.indexOf('[');
-    
-    // Handle both object and array responses
-    const actualStart = startIdx !== -1 && (arrayStartIdx === -1 || startIdx < arrayStartIdx) 
-      ? startIdx 
-      : arrayStartIdx;
-    
-    if (actualStart === -1) {
-      console.error("No JSON found in response:", cleaned);
+    if (!jsonMatch) {
+      console.error("No JSON found in response:", text);
       throw new Error("Invalid JSON structure from AI Agent - No JSON found");
     }
     
-    // Find matching closing bracket
-    const isArray = cleaned[actualStart] === '[';
-    const endChar = isArray ? ']' : '}';
-    const endIdx = cleaned.lastIndexOf(endChar);
-    
-    if (endIdx === -1 || endIdx < actualStart) {
-      console.error("Incomplete JSON in response:", cleaned);
-      throw new Error("Invalid JSON structure from AI Agent - Incomplete JSON");
-    }
-    
-    const jsonString = cleaned.substring(actualStart, endIdx + 1);
+    const jsonString = jsonMatch[0];
     
     try {
       const parsed = JSON.parse(jsonString);
       return parsed as T;
     } catch (parseError: any) {
       console.error("JSON Parse Error:", parseError.message);
-      console.error("Attempted to parse:", jsonString.substring(0, 500));
+      console.error("Raw Text:", text);
+      console.error("Extracted JSON:", jsonString);
       throw new Error(`Invalid JSON structure from AI Agent: ${parseError.message}`);
     }
   } catch (error: any) {

@@ -1,86 +1,157 @@
-import { GoogleGenAI } from "@google/genai";
+import React, { useState } from 'react';
+import { Sparkles, ArrowRight, Search, Edit3, Loader2 } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { queryAI } from '../lib/gemini';
+import { topicSuggestionPrompt } from '../lib/prompts';
+import { rateLimiter } from '../lib/rate-limiter';
+import { cn } from '../lib/utils';
+import { ContentTopic } from '../types/index';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
-
-const MODEL_NAME = 'gemini-2.0-flash-exp';
-const DEFAULT_CONFIG = {
-  temperature: 0.7,
-  topK: 40,
-  topP: 0.95,
-  maxOutputTokens: 8192,
-};
-
-async function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-export async function generateWithRetry(
-  prompt: string,
-  retries: number = 3,
-  isJson: boolean = true
-): Promise<string> {
-  let lastError: any;
+export const TopicSelector: React.FC = () => {
+  const { state, updateState, goToStep } = useApp();
+  const [activeTab, setActiveTab] = useState<'auto' | 'manual'>('auto');
+  const [industry, setIndustry] = useState(state.industry || '');
+  const [manualTopic, setManualTopic] = useState('');
   
-  for (let i = 0; i < retries; i++) {
+  const handleGenerateTopics = async () => {
+    if (!industry) return;
+    updateState({ isGenerating: true, error: null });
     try {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: prompt,
-        config: {
-          ...DEFAULT_CONFIG,
-          responseMimeType: isJson ? 'application/json' : 'text/plain',
-        }
-      });
-      
-      const text = response.text;
-      if (!text) throw new Error("Empty response from Gemini API");
-      
-      return text;
-    } catch (error: any) {
-      lastError = error;
-      console.error(`Gemini attempt ${i + 1} failed:`, error.message || error);
-      
-      const isRetryable = error?.status === 429 || 
-                         error?.message?.includes('429') || 
-                         error?.status >= 500 ||
-                         error?.message?.includes('RESOURCE_EXHAUSTED');
-      
-      if (isRetryable && i < retries - 1) {
-        const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-        await sleep(delay);
-        continue;
-      }
-      
-      throw error;
+      const prompt = topicSuggestionPrompt(industry);
+      const result = await rateLimiter.add(() => queryAI<any>(prompt));
+      const topics = (result.topics || result).map((t: any, idx: number) => ({
+        ...t,
+        id: `topic-${Date.now()}-${idx}`,
+        source: 'auto'
+      }));
+      updateState({ topics, industry, isGenerating: false });
+    } catch (err: any) {
+      updateState({ error: err.message, isGenerating: false });
     }
-  }
-  
-  throw lastError;
-}
+  };
 
-export async function queryAI<T>(prompt: string): Promise<T> {
-  try {
-    const text = await generateWithRetry(prompt, 3, true);
-    const jsonMatch = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-    
-    if (!jsonMatch) {
-      throw new Error("Invalid JSON structure from AI Agent - No JSON found");
-    }
-    
-    const jsonString = jsonMatch[0];
-    const parsed = JSON.parse(jsonString);
-    return parsed as T;
-  } catch (error: any) {
-    console.error("Gemini queryAI Error:", error);
-    
-    if (error.message?.includes('API key')) {
-      throw new Error("Invalid or missing Gemini API key");
-    } else if (error.message?.includes('model not found')) {
-      throw new Error("Gemini model not available");
-    } else if (error.message?.includes('quota')) {
-      throw new Error("API quota exceeded");
-    }
-    
-    throw error;
-  }
-}
+  const handleSelectTopic = (topic: ContentTopic) => {
+    updateState({ selectedTopic: topic });
+    goToStep(2);
+  };
+
+  const handleManualContinue = () => {
+    if (manualTopic.length < 10) return;
+    const topic: ContentTopic = {
+      id: `manual-${Date.now()}`,
+      title: manualTopic,
+      description: 'Manually entered topic',
+      popularity: 5,
+      keywords: manualTopic.split(' ').filter(w => w.length > 4).slice(0, 3),
+      source: 'manual'
+    };
+    handleSelectTopic(topic);
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
+      <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
+        <div className="flex border-b border-gray-100">
+          <button 
+            onClick={() => setActiveTab('auto')}
+            className={cn(
+              "flex-1 py-5 text-sm font-bold flex items-center justify-center gap-2 transition-all",
+              activeTab === 'auto' ? "text-primary border-b-2 border-primary bg-blue-50/30" : "text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <Sparkles size={18} /> AI Suggestions
+          </button>
+          <button 
+            onClick={() => setActiveTab('manual')}
+            className={cn(
+              "flex-1 py-5 text-sm font-bold flex items-center justify-center gap-2 transition-all",
+              activeTab === 'manual' ? "text-primary border-b-2 border-primary bg-blue-50/30" : "text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <Edit3 size={18} /> Manual Input
+          </button>
+        </div>
+
+        <div className="p-8">
+          {activeTab === 'auto' ? (
+            <div className="space-y-6">
+              <h3 className="text-xl font-bold text-gray-900">What industry or domain are you focused on?</h3>
+              <div className="flex gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="e.g. SEO, Digital Marketing, AI..."
+                    className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none transition-all font-medium"
+                    value={industry}
+                    onChange={(e) => setIndustry(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleGenerateTopics()}
+                  />
+                </div>
+                <button
+                  onClick={handleGenerateTopics}
+                  disabled={state.isGenerating || !industry}
+                  className="bg-primary text-white px-8 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                >
+                  {state.isGenerating ? <Loader2 className="animate-spin" /> : "Discover Trends"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <h3 className="text-xl font-bold text-gray-900">Enter your specific topic</h3>
+              <textarea
+                placeholder="Describe what you want to write about..."
+                className="w-full p-6 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-primary outline-none transition-all font-medium h-32 resize-none"
+                value={manualTopic}
+                onChange={(e) => setManualTopic(e.target.value)}
+              />
+              <div className="flex justify-between items-center">
+                <span className={cn("text-xs font-bold", manualTopic.length < 10 ? "text-amber-500" : "text-green-500")}>
+                  {manualTopic.length} characters (min 10)
+                </span>
+                <button
+                  onClick={handleManualContinue}
+                  disabled={manualTopic.length < 10}
+                  className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {activeTab === 'auto' && state.topics.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+          {state.topics.map((topic) => (
+            <div
+              key={topic.id}
+              onClick={() => handleSelectTopic(topic)}
+              className="group bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:border-primary hover:shadow-xl transition-all cursor-pointer"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className={cn(
+                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                  topic.popularity > 8 ? "bg-amber-100 text-amber-700" : "bg-blue-50 text-blue-700"
+                )}>
+                  {topic.popularity > 8 ? "🔥 Hot" : `Score: ${topic.popularity}/10`}
+                </div>
+              </div>
+              <h4 className="font-black text-lg mb-2 text-gray-900 group-hover:text-primary transition-colors">{topic.title}</h4>
+              <p className="text-gray-500 text-sm leading-relaxed mb-6">{topic.description}</p>
+              <div className="flex flex-wrap gap-2">
+                {topic.keywords.map(kw => (
+                  <span key={kw} className="text-[10px] text-gray-400 font-bold bg-gray-50 px-2 py-1 rounded-md">
+                    #{kw}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};

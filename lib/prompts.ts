@@ -139,52 +139,46 @@ export function contentGenerationPrompt(outline: ContentOutline, contentType: st
 }
 
 /**
- * Prompt for Step 5: Generating image prompts
+ * Prompt for Step 5: Generating image prompts (ENHANCED)
  */
-export function imagePromptGenerationPrompt(content: string, contentType: string, visualStyle: string = 'professional'): string {
+export function imagePromptGenerationPrompt(
+  content: string,
+  contentType: string,
+  visualStyle: string,
+  userBrand?: { colors: string[]; style: string }
+): string {
   return `
-    Generate image creation prompts for LinkedIn content.
+    You are an expert AI Art Director. Generate a professional LinkedIn image prompt optimized for ${contentType}.
     
-    Content Summary: ${content.substring(0, 500)}
-    Content Type: ${contentType}
-    Visual Style: ${visualStyle}
+    CONTENT SUMMARY: ${content.substring(0, 500)}
+    VISUAL STYLE: ${visualStyle}
+    ${userBrand ? `BRAND GUIDELINES: Colors [${userBrand.colors.join(', ')}], Style: ${userBrand.style}` : ''}
     
-    Create 2-3 detailed image prompts suitable for:
-    - DALL-E, Midjourney, or Stable Diffusion
-    - Professional LinkedIn aesthetic
-    - Mobile-first viewing
+    Requirements:
+    - Professional LinkedIn aesthetic (avoid generic stock photo look)
+    - Mobile-optimized (clear subjects, readable text at 400px width)
+    - Modern 2025 design trends (minimalist 3D, glassmorphism, or high-end photography)
+    - High contrast for accessibility
     
-    Each prompt should specify:
-    - Composition and layout
-    - Color palette (professional, LinkedIn-appropriate)
-    - Style and mood
-    - Key visual elements
-    - Text overlay areas (if applicable)
-    
-    Return ONLY valid JSON:
+    Generate a structure JSON response:
     {
       "imagePrompts": [
         {
           "id": "img-1",
-          "prompt": "Detailed AI image generation prompt with composition, colors, style, and specific elements",
+          "prompt": "Detailed prompt for Stable Diffusion XL / DALL-E 3... [Include lighting, composition, camera angle, film stock, render style]",
           "placement": "header",
-          "purpose": "Main attention-grabbing visual",
-          "aspectRatio": "1:1",
+          "purpose": "Main visual hook",
+          "aspectRatio": "16:9",
           "style": "${visualStyle}"
         }
       ],
       "designTips": [
-        "Keep text minimal and readable on mobile",
-        "Use high contrast for accessibility",
-        "Align with LinkedIn's professional brand"
+        "Specific advice on typography",
+        "Color usage recommendation"
       ]
     }
     
-    ${contentType === 'carousel' ? 'Include 3-5 carousel slide prompts' : ''}
-    ${contentType === 'article' ? 'Include header + 1-2 inline images' : ''}
-    ${contentType === 'post' ? 'Single impactful image' : ''}
-    
-    Focus on: professional aesthetics, brand consistency, mobile optimization.
+    Ensure the "prompt" field is descriptive enough for a text-to-image model to generate high-quality results without further instruction.
   `;
 }
 
@@ -267,6 +261,6 @@ export const PROMPTS = {
   GENERATE_IDEAS: (topic: string, contentType: string, tone: string) => contentIdeasPrompt(topic, '', contentType, tone),
   GENERATE_OUTLINE: (idea: ContentIdea) => outlineGenerationPrompt(idea),
   GENERATE_CONTENT: (outline: ContentOutline, type: string) => contentGenerationPrompt(outline, type),
-  GENERATE_IMAGE_PROMPTS: (content: string) => imagePromptGenerationPrompt(content, 'post'),
+  GENERATE_IMAGE_PROMPTS: (content: string) => imagePromptGenerationPrompt(content, 'post', 'professional'),
   GENERATE_SEO_TIPS: (content: string, topic: string) => seoAnalysisPrompt(content, topic, [])
 };

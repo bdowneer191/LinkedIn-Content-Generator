@@ -1,13 +1,15 @@
+// lib/env.ts
 
 /**
  * Validates that all necessary environment variables are set.
  */
 export function validateEnv() {
-  const required = ['API_KEY'];
-  const missing = required.filter(key => !process.env[key]);
+  // In Vite, we must use dot notation (process.env.API_KEY) for the replacement to work.
+  // We check specifically for the key we expect.
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
   
-  if (missing.length > 0) {
-    console.error(`Missing required environment variables: ${missing.join(', ')}`);
+  if (!apiKey) {
+    console.error("Missing required environment variable: API_KEY");
     // In production, we might want to throw or show a specific UI
     return false;
   }

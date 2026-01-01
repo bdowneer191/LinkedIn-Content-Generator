@@ -1,4 +1,4 @@
-// app/api/topics/route.ts - ENHANCED VERSION
+// app/api/topics/route.ts
 import { z } from 'zod';
 import { queryAI } from '../../../lib/gemini';
 import { rateLimiter } from '../../../lib/rate-limiter';
@@ -13,12 +13,13 @@ const TopicsSchema = z.object({
 
 export const runtime = 'edge';
 
-// POST: Generate personalized topics
+// POST: Generate personalized topics based on user input
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const validated = TopicsSchema.parse(body);
     
+    // Generate a unique cache key based on the input parameters
     const cacheKey = ContentCache.generateKey('topics', validated);
     const cached = ContentCache.get(cacheKey);
     if (cached) return Response.json(cached);
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
       generatedAt: new Date().toISOString()
     }));
 
+    // Cache personalized results for 60 minutes
     ContentCache.set(cacheKey, enrichedTopics, 60);
     return Response.json(enrichedTopics);
   } catch (error: any) {
@@ -50,74 +52,75 @@ export async function POST(req: Request) {
   }
 }
 
-// GET: Real-time trending topics (NO MORE MOCK DATA)
+// GET: Generate Real-time trending topics (No Mock Data)
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const industry = url.searchParams.get('industry') || 'Business & Technology';
     
+    // Cache key specific to the requested industry
     const cacheKey = `topics-trending-${industry.toLowerCase().replace(/\s+/g, '-')}`;
     const cached = ContentCache.get(cacheKey);
     if (cached) return Response.json(cached);
 
-    // Real-time trending analysis via AI
+    // Prompt for Real-time trending analysis
+    // We inject the current date to encourage the model to use its latest internal knowledge
     const trendAnalysisPrompt = `
-      Analyze current trending topics in ${industry} for LinkedIn content creation.
+      You are a specialized LinkedIn trends analyst. 
+      Analyze current trending topics in the "${industry}" sector for professional content creation.
       
-      Consider:
-      - Current events and news (${new Date().toLocaleDateString()})
-      - Emerging technologies and methodologies
-      - Hot discussions in professional circles
-      - Seasonal relevance (Q${Math.ceil((new Date().getMonth() + 1) / 3)} ${new Date().getFullYear()})
+      Context:
+      - Current Date: ${new Date().toLocaleDateString()}
+      - Quarter: Q${Math.ceil((new Date().getMonth() + 1) / 3)} ${new Date().getFullYear()}
       
-      Generate 6 high-potential LinkedIn topics optimized for engagement.
-      Include mix of:
-      - Thought leadership angles
-      - Practical how-to topics
-      - Contrarian/debate-worthy positions
-      - Personal experience frameworks
+      Task:
+      Generate 6 high-potential, specific LinkedIn topics optimized for engagement.
+      Focus on emerging technologies, methodology shifts, and hot professional debates.
       
-      Return ONLY valid JSON array:
+      Return ONLY a valid JSON array matching this schema:
       [
         {
-          "id": "unique-id",
-          "title": "Compelling title (10-15 words)",
-          "description": "2-3 sentences explaining why this matters now",
-          "popularity": 7-10,
-          "keywords": ["keyword1", "keyword2", "keyword3"],
-          "trendScore": 85,
-          "reasoning": "Why this topic is trending"
+          "id": "unique-slug-id",
+          "title": "Compelling Title (10-15 words)",
+          "description": "2-3 sentences explaining why this matters right now.",
+          "popularity": 9,
+          "keywords": ["Keyword1", "Keyword2", "Keyword3"],
+          "trendScore": 95,
+          "reasoning": "Brief explanation of the trend factor."
         }
       ]
     `;
 
     const topics = await rateLimiter.add(() => queryAI<any[]>(trendAnalysisPrompt));
     
-    // Validate and enrich
+    // Validate and enrich response
     const processedTopics = topics.map((t, i) => ({
       id: t.id || `trend-${Date.now()}-${i}`,
       title: t.title,
       description: t.description,
-      popularity: Math.min(10, Math.max(1, t.popularity || t.trendScore / 10)),
+      // Normalize popularity to 1-10 scale
+      popularity: Math.min(10, Math.max(1, t.popularity || (t.trendScore ? t.trendScore / 10 : 8))),
       keywords: t.keywords || [],
       source: 'ai-trends',
-      trendScore: t.trendScore || t.popularity * 10,
+      trendScore: t.trendScore || 85,
       reasoning: t.reasoning,
       generatedAt: new Date().toISOString()
     }));
 
-    ContentCache.set(cacheKey, processedTopics, 180); // 3 hours cache for trending
+    // Cache trending topics for 3 hours (180 minutes)
+    ContentCache.set(cacheKey, processedTopics, 180); 
     return Response.json(processedTopics);
     
   } catch (error) {
     console.error("Trending Topics Error:", error);
     
-    // Fallback: Generate generic but still AI-powered topics
+    // Graceful Fallback: If trend analysis fails, attempt a standard generation
+    // This ensures the UI never breaks even if the complex prompt fails
     try {
       const fallbackPrompt = topicSuggestionPrompt(
-        'Professional Development', 
-        ['Leadership', 'Innovation', 'Career Growth'], 
-        'Business Professionals'
+        'General Professional Development', 
+        ['Leadership', 'Future of Work', 'Productivity'], 
+        'LinkedIn Professionals'
       );
       const fallbackTopics = await rateLimiter.add(() => queryAI<any[]>(fallbackPrompt));
       return Response.json(fallbackTopics);
@@ -130,7 +133,7 @@ export async function GET(req: Request) {
   }
 }
 
-// DELETE: Clear topic cache (useful for testing/refreshing)
+// DELETE: Utility to clear topic cache (useful for testing/refreshing)
 export async function DELETE() {
   try {
     ContentCache.clear();
